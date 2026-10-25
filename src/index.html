@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- build:head -->
+<title>Firmament</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@400;500&family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=JetBrains+Mono:wght@300;400;500;600&display=swap">
+<link rel="stylesheet" href="styles.css">
+<!-- /build:head -->
+</head>
+<body>
+<!-- build:body -->
+<div id="app">
+  <main id="stage">
+    <canvas id="gl"></canvas>
+    <canvas id="ov" tabindex="0" aria-label="Mapa nieba. Przeciągnij, aby przesuwać; kółkiem myszy przybliżaj."></canvas>
+    <div class="scrim top"></div><div class="scrim bot"></div>
+    <div id="crop" hidden></div>
+    <div id="flash"></div>
+  </main>
+  <div class="corner tl"></div><div class="corner tr"></div><div class="corner bl"></div><div class="corner br"></div>
+
+  <div id="brand" class="chrome">
+    <div class="brand-line"><span class="brand-dot"></span><span class="brand-name">FIRMAMENT</span><span class="brand-sep"></span><span class="brand-ctx" id="ctx">—</span></div>
+    <div class="status idle" id="status"><span id="status-t">Gotowe</span><span class="status-bar"><i></i></span></div>
+  </div>
+
+  <div id="search" class="chrome">
+    <label class="pill"><i data-ic="search"></i><input id="q" type="search" autocomplete="off" spellcheck="false" placeholder="Szukaj · Wega, Orion, M42" aria-label="Szukaj obiektu"><kbd>/</kbd></label>
+    <div id="q-res" class="card" hidden></div>
+  </div>
+
+  <nav id="tools" class="chrome" aria-label="Narzędzia">
+    <button class="tb" id="b-home" title="Widok startowy (H)" aria-label="Widok startowy"><i data-ic="home"></i></button>
+    <button class="tb t-hist" id="b-back" title="Poprzedni widok" aria-label="Poprzedni widok"><i data-ic="back"></i></button>
+    <button class="tb t-hist" id="b-fwd" title="Następny widok" aria-label="Następny widok"><i data-ic="fwd"></i></button>
+    <span class="tsep t-misc"></span>
+    <button class="tb t-misc" id="b-cross" title="Celownik" aria-label="Celownik"><i data-ic="cross"></i></button>
+    <button class="tb t-misc" id="b-tour" title="Wycieczka po niebie (T)" aria-label="Wycieczka po niebie"><i data-ic="asterisk"></i></button>
+    <button class="tb t-misc" id="b-mark" title="Zapisz widok w Celach" aria-label="Zapisz widok"><i data-ic="mark"></i></button>
+    <span class="tsep"></span>
+    <button class="tpill" id="b-photo" title="Tryb fotograficzny (P)"><i></i>FOTO</button>
+    <span class="tsep"></span>
+    <button class="tb" id="b-play" title="Upływ czasu (spacja)" aria-label="Upływ czasu"><i data-ic="play"></i></button>
+    <button class="tb t-misc" id="b-shot" title="Szybkie zdjęcie 2×" aria-label="Szybkie zdjęcie"><i data-ic="camera"></i></button>
+    <span class="tsep t-misc"></span>
+    <button class="tb" id="b-art" title="Ilustracje gwiazdozbiorów (I)" aria-label="Ilustracje gwiazdozbiorów" aria-pressed="true"><i data-ic="figure"></i></button>
+    <button class="tb" id="b-mode" title="Niebo nad miejscem obserwacji (M)" aria-label="Tryb widoku"><i data-ic="horizon"></i></button>
+    <button class="tb on" id="b-panel" title="Panel" aria-label="Panel"><i data-ic="panel"></i></button>
+    <button class="tb t-misc" id="b-full" title="Pełny ekran (F)" aria-label="Pełny ekran"><i data-ic="full"></i></button>
+  </nav>
+
+  <aside id="panel" class="card chrome">
+    <nav class="tabs" role="tablist">
+      <button class="tab active" data-tab="nav" title="Eksploruj"><i data-ic="compass"></i><span>Eksploruj</span></button>
+      <button class="tab" data-tab="style" title="Styl"><i data-ic="palette"></i><span>Styl</span></button>
+      <button class="tab" data-tab="targets" title="Cele"><i data-ic="mark"></i><span>Cele</span></button>
+      <button class="tab" data-tab="layers" title="Warstwy"><i data-ic="layers"></i><span>Warstwy</span></button>
+      <button class="tab" data-tab="settings" title="Ustawienia"><i data-ic="gear"></i><span>Ustawienia</span></button>
+    </nav>
+
+    <!-- EXPLORE -->
+    <div class="tab-body" id="tab-nav">
+      <section class="sec">
+        <h3 class="sec-h">Pozycja<button class="link" id="copy-pos">Kopiuj</button></h3>
+        <dl class="kv" id="pos"></dl>
+      </section>
+      <section class="sec">
+        <h3 class="sec-h">Widok</h3>
+        <div class="sec-b"><div class="seg" id="seg-mode"></div><div class="seg" id="seg-proj"></div></div>
+      </section>
+      <section class="sec">
+        <h3 class="sec-h">Obrót</h3>
+        <div class="seg" id="seg-rot"></div>
+      </section>
+      <section class="sec">
+        <h3 class="sec-h">Czas<button class="link" id="t-now">Teraz</button></h3>
+        <div class="sec-b">
+          <div class="timebig"><b id="t-big">00:00</b><small id="t-date"></small><button class="tb" id="t-play" title="Upływ czasu (spacja)" aria-label="Upływ czasu"><i data-ic="play"></i></button></div>
+          <div id="r-hour"></div>
+          <input class="txt" id="dt" type="datetime-local" step="60" aria-label="Data i godzina">
+          <select id="speed" aria-label="Tempo upływu czasu"><option value="1">Tempo upływu: rzeczywiste</option><option value="60">Tempo: 1 minuta na sekundę</option><option value="600" selected>Tempo: 10 minut na sekundę</option><option value="3600">Tempo: 1 godzina na sekundę</option><option value="86400">Tempo: 1 doba na sekundę</option><option value="-600">Wstecz: 10 minut na sekundę</option></select>
+        </div>
+      </section>
+      <section class="sec">
+        <h3 class="sec-h">Miejsce obserwacji</h3>
+        <div class="sec-b">
+          <select id="loc" aria-label="Miejsce obserwacji"></select>
+          <div class="two"><label class="fld">Szerokość<input class="txt" id="lat" type="number" step="0.01" min="-90" max="90"></label><label class="fld">Długość<input class="txt" id="lon" type="number" step="0.01" min="-180" max="180"></label></div>
+        </div>
+      </section>
+      <section class="sec">
+        <div class="sec-b">
+          <button class="btn" id="a-night">Niebo dziś o 22:00<kbd>N</kbd></button>
+          <button class="btn" id="a-random">Losowy cel<kbd>R</kbd></button>
+          <button class="btn" id="a-tour"><span>Wycieczka po niebie</span><kbd>T</kbd></button>
+          <button class="btn prime" id="a-photo">Tryb fotograficzny<kbd>P</kbd></button>
+        </div>
+      </section>
+    </div>
+
+    <!-- STYLE -->
+    <div class="tab-body" id="tab-style" hidden>
+      <section class="sec">
+        <h3 class="sec-h">Wygląd<button class="link" id="surprise">Zaskocz mnie</button></h3>
+        <div class="looks" id="looks"></div>
+      </section>
+      <section class="sec">
+        <h3 class="sec-h">Paleta<button class="link" id="pal-edit">Edytuj</button></h3>
+        <div class="sec-b"><div class="grad" id="grad"></div><select id="pal" aria-label="Paleta"></select><div class="colors" id="colors" hidden></div></div>
+      </section>
+      <section class="sec">
+        <h3 class="sec-h">Gwiazdy</h3>
+        <div class="sec-b" id="r-stars"><div class="seg" id="seg-spec"></div></div>
+      </section>
+      <section class="sec">
+        <h3 class="sec-h">Niebo</h3>
+        <div class="sec-b" id="r-sky"></div>
+      </section>
+      <section class="sec">
+        <h3 class="sec-h">Opisy i linie</h3>
+        <div class="sec-b" id="r-lines"><div class="seg" id="seg-font"></div></div>
+      </section>
+      <section class="sec fold">
+        <h3 class="sec-h">Zaawansowane<span class="plus">+</span></h3>
+        <div class="sec-b" id="r-adv"><div class="seg" id="seg-size"></div><div class="seg" id="seg-line"></div></div>
+      </section>
+      <section class="sec">
+        <h3 class="sec-h">Własne style</h3>
+        <div class="sec-b">
+          <div class="two" style="grid-template-columns:1fr auto"><input class="txt" id="save-name" placeholder="Nazwa stylu" maxlength="28"><button class="btn sm prime" id="save-look">Zapisz</button></div>
+          <div class="btns"><button class="btn sm" id="exp">Kopiuj JSON</button><button class="btn sm" id="imp-toggle">Wklej…</button></div>
+          <div id="imp-box" class="sec-b" hidden><textarea class="txt" id="imp-text" placeholder='{"name":"…","colors":{…}}'></textarea><button class="btn sm" id="imp">Zastosuj</button></div>
+        </div>
+      </section>
+    </div>
+
+    <!-- TARGETS -->
+    <div class="tab-body" id="tab-targets" hidden>
+      <section class="sec"><div class="sec-b"><button class="btn prime" id="tour-btn"><span>Rozpocznij wycieczkę</span><kbd>T</kbd></button></div></section>
+      <section class="sec"><h3 class="sec-h">Na co warto spojrzeć</h3><div class="targets" id="targets"></div></section>
+      <section class="sec"><h3 class="sec-h">Moje widoki<button class="link" id="mark2">Zapisz bieżący</button></h3><div class="targets" id="mine"></div></section>
+    </div>
+
+    <!-- LAYERS -->
+    <div class="tab-body" id="tab-layers" hidden>
+      <section class="sec"><h3 class="sec-h">Obiekty</h3><div class="sec-b" id="ly-obj" style="gap:4px"></div></section>
+      <section class="sec"><h3 class="sec-h">Gwiazdozbiory</h3><div class="sec-b" id="ly-con" style="gap:4px"></div></section>
+      <section class="sec"><h3 class="sec-h">Linie odniesienia</h3><div class="sec-b" id="ly-ref" style="gap:4px"></div></section>
+      <section class="sec"><h3 class="sec-h">Widok z miejsca</h3><div class="sec-b" id="ly-hor" style="gap:4px"></div></section>
+    </div>
+
+    <!-- SETTINGS -->
+    <div class="tab-body" id="tab-settings" hidden>
+      <section class="sec">
+        <h3 class="sec-h">Jakość obrazu</h3>
+        <div class="sec-b"><div class="seg" id="seg-q"></div><p class="note" id="q-note"></p></div>
+      </section>
+      <section class="sec"><h3 class="sec-h">Ruch</h3><div class="sec-b" id="r-anim"></div></section>
+      <section class="sec"><h3 class="sec-h">Wyświetlanie</h3><div class="sec-b" id="st-misc" style="gap:4px"></div></section>
+      <section class="sec fold">
+        <h3 class="sec-h">Skróty klawiszowe<span class="plus">+</span></h3>
+        <div class="sec-b keys">
+          <kbd>przeciągnij</kbd><span>przesuwanie z bezwładnością</span>
+          <kbd>kółko</kbd><span>płynny zoom do kursora</span>
+          <kbd>2× klik</kbd><span>przelot i przybliżenie</span>
+          <kbd>← → ↑ ↓</kbd><span>przesuwanie</span>
+          <kbd>+ −</kbd><span>przybliż, oddal</span>
+          <kbd>Q E</kbd><span>obrót</span>
+          <kbd>H</kbd><span>widok startowy</span>
+          <kbd>M</kbd><span>mapa / widok z miejsca</span>
+          <kbd>N</kbd><span>niebo dziś o 22:00</span>
+          <kbd>R</kbd><span>losowy cel</span>
+          <kbd>T</kbd><span>wycieczka</span>
+          <kbd>I</kbd><span>ilustracje gwiazdozbiorów: wł. / wył.</span>
+          <kbd>P</kbd><span>tryb fotograficzny</span>
+          <kbd>Enter</kbd><span>zdjęcie (w trybie foto)</span>
+          <kbd>spacja</kbd><span>upływ czasu</span>
+          <kbd>/</kbd><span>wyszukiwarka</span>
+          <kbd>Esc</kbd><span>odznacz, wyjdź</span>
+        </div>
+      </section>
+      <section class="sec fold">
+        <h3 class="sec-h">O danych<span class="plus">+</span></h3>
+        <div class="sec-b"><p class="note">Ok. 41 tys. gwiazd do 8 mag z katalogu Hipparcos (J2000), przynależność do gwiazdozbiorów wg granic IAU; linie, granice, obiekty Messiera i kontury Drogi Mlecznej z projektu d3-celestial (O. Frohn, BSD-3). Nazwy gwiazd zweryfikowane z bazą Stellarium. Ilustracje i ikony gwiazdozbiorów: Stellarium (kultura nieba „modern”), licencja Free Art License 1.3. Gwiazdy tła słabsze niż 8 mag są generowane dekoracyjnie i nie odpowiadają prawdziwym gwiazdom. Kod programu: licencja MIT; szczegóły licencji danych w pliku THIRD_PARTY_NOTICES.md.</p><p class="note">Dokładność sprawdzona z biblioteką astropy: gwiazdy w widoku z miejsca &lt; 0,01° (precesja, refrakcja), Słońce i planety &lt; 1′, Księżyc ok. 1′ z paralaksą, w latach 1900–2100. Czas podawany jest w strefie czasowej miejsca obserwacji.</p></div>
+      </section>
+      <section class="sec"><button class="btn sm" id="reset-all">Przywróć ustawienia domyślne</button></section>
+    </div>
+  </aside>
+
+  <div id="zoomblk" class="chrome">
+    <div class="zb-label">Pole widzenia</div>
+    <div class="zb-num" id="zb-num">0</div>
+    <div class="ruler"><input type="range" id="zb-range" min="0" max="1000" step="1" aria-label="Pole widzenia"></div>
+    <div class="ruler-lab"><span>360°</span><span>Pole · skala log</span><span>0,4°</span></div>
+    <div id="readout"></div>
+  </div>
+
+  <div id="stats" class="chrome"></div>
+  <button id="compass" class="chrome" title="Kliknij, aby wyzerować obrót" aria-label="Kompas"><canvas width="88" height="88"></canvas></button>
+  <div id="card" class="card chrome" hidden></div>
+  <div id="tip" class="card" hidden></div>
+  <div id="caption" hidden aria-live="polite"><div class="cap-k" id="cap-k"></div><div class="cap-t" id="cap-t"></div><div class="cap-s" id="cap-s"></div><div class="cap-c" id="cap-c"></div></div>
+  <div id="toast" class="card"></div>
+
+  <div id="ph-hint" hidden>Tryb fotograficzny · Enter — zdjęcie · Esc — wyjście</div>
+  <div id="photobar" class="card" hidden>
+    <div class="pb-g"><span class="pb-l">Kadr</span><span id="pb-aspect" class="pb-g"></span></div>
+    <div class="pb-g"><span class="pb-l">Rozdz.</span><span id="pb-res" class="pb-g"></span></div>
+    <div class="pb-g" id="pb-layers"></div>
+    <div class="pb-g"><span class="pb-l">Ekspozycja</span><input type="range" class="pb-exp" id="pb-exp" min="0" max="1000" aria-label="Ekspozycja"></div>
+    <button class="shutter" id="pb-shoot"><i></i>Zdjęcie</button>
+    <button class="chip" id="pb-exit">Wyjdź · Esc</button>
+  </div>
+</div>
+
+<div id="shot" hidden>
+  <div class="box card">
+    <img id="shot-img" alt="Zdjęcie nieba">
+    <div class="meta"><span id="shot-meta"></span><span>Jeśli pobieranie nie ruszy: prawy przycisk na obrazie → „Zapisz obraz jako…”</span></div>
+    <div class="btns"><button class="btn sm prime" id="shot-save">Zapisz PNG</button><button class="btn sm" id="shot-copy">Kopiuj do schowka</button><button class="btn sm" id="shot-close">Zamknij</button></div>
+  </div>
+</div>
+<!-- /build:body -->
+<!-- build:scripts -->
+<script src="data/skydata.js"></script>
+<script src="data/artdata.js"></script>
+<script src="data/content.js"></script>
+<script src="js/00-util.js"></script>
+<script src="js/01-data.js"></script>
+<script src="js/02-looks.js"></script>
+<script src="js/03-astro.js"></script>
+<script src="js/04-view.js"></script>
+<script src="js/05-gl.js"></script>
+<script src="js/06-overlay.js"></script>
+<script src="js/07-main.js"></script>
+<script src="js/08-ui.js"></script>
+<script src="js/09-boot.js"></script>
+<!-- /build:scripts -->
+</body>
+</html>

@@ -1,0 +1,11 @@
+# jednolite końce linii (LF) we wszystkich plikach tekstowych
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.webp binary
+
+# pliki wygenerowane – bez porównywania zmian linia po linii i bez wliczania do statystyk języków
+Firmament.html linguist-generated=true -diff
+src/data/skydata.js linguist-generated=true -diff
+src/data/artdata.js linguist-generated=true -diff
+tools/raw/** linguist-vendored=true -diff

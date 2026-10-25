@@ -1,0 +1,22 @@
+# lokalne kopie poprzednich wersji (nie trafiają do repozytorium)
+_archiwum/
+
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Node (narzędzia pomocnicze, np. ESLint)
+node_modules/
+
+# system i edytory
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+
+# podgląd arkusza ikon z tools/prep_art.py
+tools/icons-preview.png
