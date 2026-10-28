@@ -77,6 +77,17 @@
         <h3 class="sec-h">Obrót</h3>
         <div class="seg" id="seg-rot"></div>
       </section>
+      <section class="sec" id="sec-mer">
+        <h3 class="sec-h">Południk<button class="link" id="mer-on">Pokaż</button></h3>
+        <div class="sec-b" id="mer-body" hidden>
+          <div class="mer-head"><b id="mer-ra">—</b><small id="mer-sub"></small></div>
+          <div class="seg" id="seg-mer"></div>
+          <div id="r-mer"></div>
+          <div class="mer-acts"><button class="btn sm" id="mer-center" type="button">Środek widoku</button><button class="btn sm" id="mer-pick" type="button">Wskaż na niebie</button></div>
+          <div class="mer-list" id="mer-list"></div>
+          <button class="btn prime" id="mer-ride" type="button"><span>Przejedź wzdłuż południka</span><kbd>L</kbd></button>
+        </div>
+      </section>
       <section class="sec">
         <h3 class="sec-h">Czas<button class="link" id="t-now">Teraz</button></h3>
         <div class="sec-b">
@@ -177,6 +188,7 @@
           <kbd>R</kbd><span>losowy cel</span>
           <kbd>T</kbd><span>wycieczka</span>
           <kbd>I</kbd><span>ilustracje gwiazdozbiorów: wł. / wył.</span>
+          <kbd>L</kbd><span>przejazd wzdłuż południka</span>
           <kbd>P</kbd><span>tryb fotograficzny</span>
           <kbd>Enter</kbd><span>zdjęcie (w trybie foto)</span>
           <kbd>spacja</kbd><span>upływ czasu</span>
@@ -186,7 +198,7 @@
       </section>
       <section class="sec fold">
         <h3 class="sec-h">O danych<span class="plus">+</span></h3>
-        <div class="sec-b"><p class="note">Ok. 41 tys. gwiazd do 8 mag z katalogu Hipparcos (J2000), przynależność do gwiazdozbiorów wg granic IAU; linie, granice, obiekty Messiera i kontury Drogi Mlecznej z projektu d3-celestial (O. Frohn, BSD-3). Nazwy gwiazd zweryfikowane z bazą Stellarium. Ilustracje i ikony gwiazdozbiorów: Stellarium (kultura nieba „modern”), licencja Free Art License 1.3. Gwiazdy tła słabsze niż 8 mag są generowane dekoracyjnie i nie odpowiadają prawdziwym gwiazdom. Kod programu: licencja MIT; szczegóły licencji danych w pliku THIRD_PARTY_NOTICES.md.</p><p class="note">Dokładność sprawdzona z biblioteką astropy: gwiazdy w widoku z miejsca &lt; 0,01° (precesja, refrakcja), Słońce i planety &lt; 1′, Księżyc ok. 1′ z paralaksą, w latach 1900–2100. Czas podawany jest w strefie czasowej miejsca obserwacji.</p></div>
+        <div class="sec-b"><p class="note">Ok. 41 tys. gwiazd do 8 mag z bazy HYG 4.1 (D. Nash, CC BY-SA 4.0; Hipparcos, nowa redukcja) z ruchem własnym i odległościami; przynależność do gwiazdozbiorów wg granic IAU. Nazwy gwiazd: oficjalna lista IAU WGSN. Obiekty Messiera: OpenNGC (M. Verga, CC BY-SA 4.0). Linie i granice gwiazdozbiorów oraz kontury Drogi Mlecznej: d3-celestial (O. Frohn, BSD-3). Ilustracje i ikony gwiazdozbiorów: ryciny z atlasu J. E. Bodego „Uranographia” (Berlin 1801), domena publiczna; skany: ETH-Bibliothek Zürich, e-rara.ch. Gwiazdy tła słabsze niż 8 mag są generowane dekoracyjnie i nie odpowiadają prawdziwym gwiazdom. Kod programu: licencja MIT; szczegóły licencji danych w pliku THIRD_PARTY_NOTICES.md.</p><p class="note">Dokładność sprawdzona z biblioteką astropy: gwiazdy w widoku z miejsca &lt; 0,01° (precesja, refrakcja), Słońce i planety &lt; 1′, Księżyc ok. 1′ z paralaksą, w latach 1900–2100. Czas podawany jest w strefie czasowej miejsca obserwacji.</p></div>
       </section>
       <section class="sec"><button class="btn sm" id="reset-all">Przywróć ustawienia domyślne</button></section>
     </div>
@@ -196,7 +208,7 @@
     <div class="zb-label">Pole widzenia</div>
     <div class="zb-num" id="zb-num">0</div>
     <div class="ruler"><input type="range" id="zb-range" min="0" max="1000" step="1" aria-label="Pole widzenia"></div>
-    <div class="ruler-lab"><span>360°</span><span>Pole · skala log</span><span>0,4°</span></div>
+    <div class="ruler-lab"><span>360°</span><span>Pole · skala log</span><span>0,1°</span></div>
     <div id="readout"></div>
   </div>
 
@@ -239,7 +251,8 @@
 <script src="js/06-overlay.js"></script>
 <script src="js/07-main.js"></script>
 <script src="js/08-ui.js"></script>
-<script src="js/09-boot.js"></script>
+<script src="js/10-meridian.js"></script>
+<script src="js/99-boot.js"></script>
 <!-- /build:scripts -->
 </body>
 </html>

@@ -40,7 +40,7 @@ function strokeVecs(ctx, view, pts, closed, M, frameCoords) {
   return started;
 }
 let groundCheckFrame = false;
-function gridSteps(fov) { if (fov > 120) return [30, 30]; if (fov > 70) return [15, 15]; if (fov > 35) return [15, 10]; if (fov > 18) return [7.5, 5]; if (fov > 8) return [2.5, 2]; if (fov > 3) return [1.25, 1]; return [0.25, 0.25]; }
+function gridSteps(fov) { if (fov > 120) return [30, 30]; if (fov > 70) return [15, 15]; if (fov > 35) return [15, 10]; if (fov > 18) return [7.5, 5]; if (fov > 8) return [2.5, 2]; if (fov > 3) return [1.25, 1]; if (fov > 0.8) return [0.25, 0.25]; return [1 / 24, 1 / 30]; }   // finest: 10 s of RA, 2′ of Dec
 function visibleRange(view, M) {
   // sample screen to find visible lon/lat ranges in the frame given by matrix M (frame->local)
   let latMin = 90, latMax = -90; const lons = [];
@@ -66,6 +66,10 @@ function visibleRange(view, M) {
   }
   const lp = (latMax - latMin) * 0.1 + 1;
   return { lo0, lo1, la0: Math.max(-90, latMin - lp), la1: Math.min(90, latMax + lp) };
+}
+function raLabel(lo, ls) {   // grid label: whole hours, minutes, or minutes and seconds of right ascension
+  const s = Math.round(((lo % 360) + 360) % 360 / 15 * 3600) % 86400, h = Math.floor(s / 3600), m = Math.floor(s / 60) % 60;
+  return ls >= 15 ? `${h}h` : ls >= 0.25 ? `${h}h${pad2(m)}m` : `${h}h${pad2(m)}m${pad2(s % 60)}s`;
 }
 function drawText(ctx, txt, x, y, col, a) { ctx.fillStyle = rgba(col, a); ctx.fillText(txt, x, y); }
 
@@ -99,7 +103,7 @@ function drawOverlay(ctx, view, lk, o) {
     ctx.font = `10px "JetBrains Mono", ui-monospace, monospace`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     const cLat = clamp(Math.round(st.lat / as) * as, -80, 80), cLon = Math.round(st.lon / ls) * ls;
     const la1 = obs && layers.ground ? Math.max(cLat, as) : cLat;
-    for (let lo = lo0; lo <= rg.lo1; lo += ls) { if (pjM(view, M, vec(lo, la1)) && P[0] > 10 && P[0] < Wv - 10 && P[1] > 10 && P[1] < Hv - 10) { const t = obs ? `${Math.round(((-lo % 360) + 360) % 360)}°` : (ls >= 15 ? `${Math.round(((lo % 360) + 360) % 360 / 15)}h` : `${Math.floor(((lo % 360) + 360) % 360 / 15)}h${pad2(Math.round((((lo % 360) + 360) % 360 / 15 % 1) * 60))}m`); drawText(ctx, t, P[0], P[1] - 8, c.grid, Math.min(1, style.gridA * 2.6)); } }
+    for (let lo = lo0; lo <= rg.lo1; lo += ls) { if (pjM(view, M, vec(lo, la1)) && P[0] > 10 && P[0] < Wv - 10 && P[1] > 10 && P[1] < Hv - 10) { const t = obs ? `${Math.round(((-lo % 360) + 360) % 360)}°` : raLabel(lo, ls); drawText(ctx, t, P[0], P[1] - 8, c.grid, Math.min(1, style.gridA * 2.6)); } }
     for (let la = la0; la <= rg.la1; la += as) { if (Math.abs(la) > 89 || (obs && layers.ground && la < 0) || Math.abs(la - la1) < 1e-6) continue; if (pjM(view, M, vec(cLon, la)) && P[0] > 10 && P[0] < Wv - 10 && P[1] > 10 && P[1] < Hv - 10) drawText(ctx, `${la > 0 ? '+' : la < 0 ? '−' : ''}${Math.abs(la) % 1 ? pl(Math.abs(la), 2) : Math.abs(la)}°`, P[0] + 16, P[1] - 7, c.grid, Math.min(1, style.gridA * 2.6)); }
   }
   // --- ecliptic, galactic equator
@@ -154,6 +158,7 @@ function drawOverlay(ctx, view, lk, o) {
     ctx.setLineDash([]);
   }
   if (thumb) return;
+  if (!o.clean) drawMeridian(ctx, view, c);
   const placer = new Placer();
   // --- attribute notes on a highlighted illustration (club, Medusa's head, ear of wheat…)
   if (layers.artNotes && layers.art !== false && !o.clean) {
@@ -162,8 +167,8 @@ function drawOverlay(ctx, view, lk, o) {
       const info = CONINFO[CONS[ci].id], A = ART[artOfCon(ci)]; if (!info || !info.p || !A) continue;
       const a = ha * clamp((A.cur - 0.08) * 4, 0, 1); if (a < 0.03) continue;
       const col = mix3(c.label, c.accent, 0.4);
-      for (const [u, v, txt] of info.p) {
-        const w = nrm(mv(A.B, [u, v, 1])); if (!pj(view, w) || !aboveGround(w)) continue; const x = P[0], y = P[1];
+      for (const [ra, de, txt] of info.p) {
+        const w = vec(ra, de); if (!pj(view, w) || !aboveGround(w)) continue; const x = P[0], y = P[1];
         if (x < 0 || x > Wv || y < 0 || y > Hv) continue;
         const tw = ctx.measureText(txt).width; placer.add(x + 5, y - 9, tw + 6, 13);
         ctx.fillStyle = rgba(col, 0.9 * a); ctx.beginPath(); ctx.arc(x, y, 2.2, 0, TAU); ctx.fill();

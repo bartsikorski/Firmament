@@ -1,23 +1,24 @@
 """
 Firmament – przygotowanie danych katalogowych.
 
-Czyta surowe pliki GeoJSON z tools/raw/ (projekt d3-celestial, O. Frohn, licencja BSD-3)
-i zapisuje skompresowany plik src/data/skydata.js:
-  * gwiazdy do 8 mag – ok. 41 tys. z katalogu Hipparcos (pozycja J2000 z dokładnością 0,001°,
-    jasność, B−V, HIP), zapisane binarnie (base64, 13 bajtów na gwiazdę),
-    ich nazwy zweryfikowane z bazą nazw Stellarium (błędne nazwy z d3-celestial są usuwane),
+Czyta pliki z tools/raw/ i zapisuje skompresowany plik src/data/skydata.js:
+  * gwiazdy do 8 mag – ok. 41 tys. z bazy HYG 4.1 (Hipparcos; pozycja J2000 z dokładnością 0,0001°,
+    ruch własny, odległość z paralaksy, jasność, B−V, typ widmowy, numer HIP), zapisane binarnie
+    (base64, 19 bajtów na gwiazdę); oznaczenia Bayera/Flamsteeda z katalogu Yale (przez HYG);
+    nazwy – oficjalne nazwy IAU WGSN, dla najbardziej znanych gwiazd w polskiej formie;
     przynależność do gwiazdozbioru wyznaczona dokładnie wg granic IAU (w układzie B1875,
     w którym krawędzie granic biegną wzdłuż stałej rektascensji lub deklinacji),
-    oraz gwiazdozbiór oznaczenia Bayera/Flamsteeda (np. β Tauri leży w granicach Byka),
-  * linie, granice i etykiety 88 gwiazdozbiorów (polskie nazwy),
+    oraz gwiazdozbiór oznaczenia Bayera/Flamsteeda (zwykle ten sam; wyjątki to np. 10 UMa leżąca w Rysiu),
+  * linie, granice i etykiety 88 gwiazdozbiorów (d3-celestial, O. Frohn, BSD-3; polskie nazwy),
   * siatka przynależności do gwiazdozbiorów (0,25°) do podświetlania pod kursorem,
-  * obiekty Messiera,
+  * obiekty Messiera (d3-celestial; środki, rozmiary i kąty położenia z OpenNGC),
   * tekstura Drogi Mlecznej w układzie galaktycznym (WebP, 2048×1024).
 
-Wymaga: Python 3.9+, numpy, scipy, Pillow  (pip install numpy scipy pillow)
+Pliki hyg_v41_mag8.csv, iau_star_names.csv i openngc_messier.csv tworzy tools/fetch_sources.py.
+Wymaga: Python 3.9+, numpy, scipy, Pillow  (pip install -r tools/requirements.txt)
 Uruchomienie (z folderu projektu):  python tools/prep_data.py      (trwa kilka minut)
 """
-import json, math, base64, io, os, struct
+import json, math, base64, io, os, struct, re, csv
 import numpy as np
 from PIL import Image, ImageDraw, ImageChops
 from scipy.ndimage import gaussian_filter, distance_transform_edt
@@ -71,43 +72,76 @@ for f in load('constellations.json')['features']:
                     'pos': [round(ra360(lon), 2), round(lat, 2)]})
 
 # ---------------------------------------------------------------- stars
-STAR_PL = {'Shedar':'Szedar','Sirius':'Syriusz','Canopus':'Kanopus','Arcturus':'Arktur','Vega':'Wega','Capella':'Kapella',
+# Gwiazdy: baza HYG 4.1 (pozycje J2000, ruch własny, odległość z paralaksy Hipparcosa, typ widmowy,
+# oznaczenia Bayera/Flamsteeda z katalogu Yale). Nazwy: oficjalne nazwy IAU WGSN (po numerze HIP),
+# a dla wybranych gwiazd – polskie formy. Składniki układów bez własnej nazwy IAU dostają nazwę „… B”.
+STAR_PL = {'Sirius':'Syriusz','Canopus':'Kanopus','Arcturus':'Arktur','Vega':'Wega','Capella':'Kapella',
  'Procyon':'Procjon','Betelgeuse':'Betelgeza','Acrux':'Akruks','Spica':'Spika','Pollux':'Polluks',
- 'Mimosa':'Mimoza','Castor':'Kastor','Shaula':'Szaula','Bellatrix':'Bellatriks','Polaris':'Gwiazda Polarna',
- 'Adhara':'Adara','Schedar':'Szedar'}
-stars = load('stars.8.json')['features']
-names = load('starnames.json')
-# reference star names (Stellarium "modern" sky culture, CC BY-SA 4.0)
-REFN = {k: v for k, v in load('stellarium_modern_index.json')['common_names'].items()}
-IAUREF = {12, 36, 45}
-def checked_name(hip, name):
-    ref = REFN.get(f'HIP {hip}', [])
-    if not name: return ''
-    variants = {x.get('english', '') for x in ref} | {x.get('native', '') for x in ref}
-    base = {v.rsplit(' ', 1)[0] if v.endswith((' I', ' II', ' III', ' IV')) else v for v in variants}
-    if name in variants or name in base: return name
-    iau = [x['english'] for x in ref if IAUREF & set(x.get('references', []))]
-    return iau[0] if iau else ''   # nazwa niepotwierdzona -> zostaje samo oznaczenie Bayera
-stars.sort(key=lambda f: f['properties']['mag'])
-S, NM, DROPPED = [], {}, []
+ 'Mimosa':'Mimoza','Castor':'Kastor','Castor B':'Kastor B','Shaula':'Szaula','Bellatrix':'Bellatriks',
+ 'Polaris':'Gwiazda Polarna','Adhara':'Adara','Schedar':'Szedar','Alcor':'Alkor','Garnet Star':'Granatowa Gwiazda'}
+GREEK = {'Alp':'α','Bet':'β','Gam':'γ','Del':'δ','Eps':'ε','Zet':'ζ','Eta':'η','The':'θ','Iot':'ι','Kap':'κ','Lam':'λ',
+ 'Mu':'μ','Nu':'ν','Xi':'ξ','Omi':'ο','Pi':'π','Rho':'ρ','Sig':'σ','Tau':'τ','Ups':'υ','Phi':'φ','Chi':'χ','Psi':'ψ','Ome':'ω'}
+SUP = str.maketrans('0123456789', '⁰¹²³⁴⁵⁶⁷⁸⁹')
+def bayer(code):
+    m = re.match(r'^([A-Z][a-z]+)-?(\d*)$', code or '')
+    if not m: return code or ''
+    return GREEK.get(m.group(1), m.group(1)) + m.group(2).translate(SUP)
+fnum = lambda x: float(x) if x not in ('', None) else None
+hyg = list(csv.DictReader(open(os.path.join(RAW, 'hyg_v41_mag8.csv'), encoding='utf-8')))
+IAU, IAU_NOHIP = {}, set()   # names bound to a HIP number; names of stars that have none in Hipparcos
+for r in csv.DictReader(open(os.path.join(RAW, 'iau_star_names.csv'), encoding='utf-8')):
+    h = (r['HIP'] or '').strip()
+    if h.isdigit(): IAU.setdefault(int(h), r['Proper Names'].strip())
+    else: IAU_NOHIP.add(r['Proper Names'].strip())
+# stars without a HIP number (e.g. Mizar B, Castor B) only when they do not coincide with a HIP star
+vh = {}
+for r in hyg:
+    if r['hip']: vh.setdefault(r['bf'], []).append(r)
+def far_from_hip(r):
+    v = vec(float(r['ra']) * 15, float(r['dec']))
+    return all(math.degrees(math.acos(min(1, v @ vec(float(o['ra']) * 15, float(o['dec']))))) * 3600 > 3 for o in vh.get(r['bf'], []))
+hyg = [r for r in hyg if r['hip'] or (r['bf'].strip() and far_from_hip(r))]
+# a non-HIP entry at the same place as a brighter star of the same system (e.g. Alula Australis B) adds nothing
+def dup(r):
+    if r['hip']: return False
+    v = vec(float(r['ra']) * 15, float(r['dec']))
+    return any(o is not r and float(o['mag']) <= float(r['mag']) and o['bf'] == r['bf'] and
+               math.degrees(math.acos(min(1, v @ vec(float(o['ra']) * 15, float(o['dec']))))) * 3600 < 1.5 for o in hyg)
+hyg = [r for r in hyg if not dup(r)]
+hyg.sort(key=lambda r: float(r['mag']))
+# IAU names whose HIP star is absent here (e.g. ξ UMa, listed in HYG only as Gliese components) may go to a non-HIP entry
+present = {int(r['hip']) for r in hyg if r['hip']}
+IAU_NOHIP |= {n for h, n in IAU.items() if h not in present}
+named_bf = {}
+for r in hyg:
+    if r['hip'] and IAU.get(int(r['hip'])) and r['bf'].strip(): named_bf.setdefault(r['bf'], IAU[int(r['hip'])])
+S, NM, PM, DIST, SPEC = [], {}, [], [], {}
 STRIDE = 7
-for i, f in enumerate(stars):
-    hip = str(f['id'])
-    lon, lat = f['geometry']['coordinates']
-    p = f['properties']
-    try: bv = float(p['bv'])
-    except (TypeError, ValueError): bv = 0.6
-    n = names.get(hip, {})
-    dcon = con_ids.index(n['c']) if n.get('c') in con_ids else -1
-    S += [int(round(ra360(lon) * 1000)), int(round(lat * 1000)), int(round(p['mag'] * 100)), int(round(bv * 100)), -1, int(hip), dcon]
-    raw_name = n.get('name', '')
-    name = checked_name(hip, raw_name)
-    if raw_name and name != raw_name: DROPPED.append(f'{raw_name} -> {name or "(brak)"} [HIP {hip}]')
-    proper = STAR_PL.get(name, name)
-    if proper or n.get('bayer') or n.get('flam'):
-        NM[i] = [proper, n.get('bayer', ''), n.get('flam', ''), dcon]
-NSTAR = len(stars)
-V = np.array([vec(S[k * STRIDE] / 1000, S[k * STRIDE + 1] / 1000) for k in range(NSTAR)])
+for i, r in enumerate(hyg):
+    hip = int(r['hip']) if r['hip'] else 0
+    ra, de, mag = float(r['ra']) * 15, float(r['dec']), float(r['mag'])
+    bv = fnum(r['ci']); bv = 0.6 if bv is None else bv
+    bf = r['bf'].strip(); dc = bf[-3:].strip() if bf else ''
+    dcon = con_ids.index(dc) if dc in con_ids else -1
+    S += [int(round(ra360(ra) * 10000)) % 3600000, int(round(de * 10000)), int(round(mag * 100)), int(round(bv * 100)), -1, hip, dcon]
+    PM.append((fnum(r['pmra']) or 0.0, fnum(r['pmdec']) or 0.0))
+    d = fnum(r['dist']); DIST.append(d if d and 0 < d < 100000 else 0.0)
+    name = IAU.get(hip, '') if hip else ''
+    if not name and r['proper'].endswith(' B'): name = r['proper']            # e.g. Albireo B, Cor Caroli B
+    if not name and not hip and r['proper'] in IAU_NOHIP: name = r['proper']  # e.g. Alula Australis (no HIP entry)
+    if not name and not hip and bf in named_bf: name = named_bf[bf] + ' B'     # e.g. Mizar B
+    name = STAR_PL.get(name, name)
+    by, fl = bayer(r['bayer']), r['flam']
+    if name or by or fl: NM[i] = [name, by, fl, dcon]
+    if mag <= 6.5 and r['spect'].strip(): SPEC[i] = r['spect'].strip()
+# spectral types that the Hipparcos catalogue gives for the companion or a blend instead of the bright primary
+# (B−V contradicts them by two classes or more); SIMBAD / literature values
+SPEC_FIX = {9640: 'K3 IIb', 24608: 'K0 III + G1 III', 32246: 'G8 Ib', 54061: 'K0 IIIa', 72105: 'K0 II-III + A2 V', 100345: 'K0 II + A5n'}
+for i, r in enumerate(hyg):
+    if r['hip'] and int(r['hip']) in SPEC_FIX: SPEC[i] = SPEC_FIX[int(r['hip'])]
+NSTAR = len(hyg)
+V = np.array([vec(S[k * STRIDE] / 10000, S[k * STRIDE + 1] / 10000) for k in range(NSTAR)])
+print('Gwiazdy:', NSTAR, '· nazwy IAU:', sum(1 for v in NM.values() if v[0]), '· bez numeru HIP:', sum(1 for k in range(NSTAR) if not S[k * STRIDE + 5]))
 
 # constellation figures as star indices
 L = {}
@@ -122,18 +156,53 @@ for f in load('constellations.lines.json')['features']:
     L.setdefault(f['id'], []).extend(out)
 
 # boundaries (lines for drawing, polygons for highlight)
+# Every IAU boundary edge runs along constant RA or constant Dec in the B1875 frame. The vertices are therefore
+# moved to B1875, cleaned, densified there along the true edges and only then returned to J2000.
+def to75(lon, lat):
+    w = P1875 @ vec(ra360(lon), lat)
+    return (math.degrees(math.atan2(w[1], w[0])) % 360, math.degrees(math.asin(max(-1, min(1, w[2])))))
+def aligned(p, q):
+    dra = ((q[0] - p[0] + 180) % 360) - 180
+    return abs(dra) * math.cos(math.radians((p[1] + q[1]) / 2)) < 0.003 or abs(q[1] - p[1]) < 0.003
+DROPPED = [0]
+def clean75(coords, closed):
+    """J2000 vertices -> B1875 [(ra, dec)], without vertices that lie off the constant-RA/Dec edges.
+    (d3-celestial has three such points on the UMi/Cep border, which in B1875 is the parallel +88°
+    from 23h through 0h to 8h; they were up to 0.45° too far south.)"""
+    ring = [to75(lon, lat) for lon, lat in coords]
+    while True:
+        n = len(ring)
+        k = next((k for k in range(n) if (closed or 0 < k < n - 1)
+                  and not aligned(ring[k - 1], ring[k]) and not aligned(ring[k], ring[(k + 1) % n])), None)
+        if k is None: return ring
+        ring.pop(k); DROPPED[0] += 1
+def dens75(ring, closed, step=1.0, rastep=6.0, nd=3):
+    """densify in B1875 along the edges, back to J2000, flattened [ra, dec, ra, dec, …]"""
+    n = len(ring); pts = []
+    for k in range(n if closed else n - 1):
+        (r1, d1), (r2, d2) = ring[k], ring[(k + 1) % n]
+        dra = ((r2 - r1 + 180) % 360) - 180
+        m = max(1, math.ceil(max(abs(dra) * math.cos(math.radians(min(abs(d1), abs(d2)))) / step, abs(dra) / rastep, abs(d2 - d1) / step)))
+        pts += [(r1 + dra * s / m, d1 + (d2 - d1) * s / m) for s in range(m)]
+    if not closed: pts.append(ring[-1])
+    flat = []
+    for r, d in pts:
+        w = P1875.T @ vec(r % 360, d)
+        flat += [round(math.degrees(math.atan2(w[1], w[0])) % 360, nd), round(math.degrees(math.asin(max(-1, min(1, w[2])))), nd)]
+    return flat
 B = []
 for f in load('constellations.borders.json')['features']:
     for line in f['geometry']['coordinates']:
-        flat = []
-        for lon, lat in line: flat += [round(ra360(lon), 2), round(lat, 2)]
-        B.append(flat)
+        B.append(dens75(clean75(line, False), False))
 BD = [[] for _ in con_ids]
 bounds = load('constellations.bounds.json')['features']
+RING75 = []                               # per feature (Serpens has two: Caput and Cauda)
 for f in bounds:
-    flat = []
-    for lon, lat in f['geometry']['coordinates'][0]: flat += [round(lon % 360, 2), round(lat, 2)]
-    BD[con_ids.index(f['id'])].append(flat)
+    r = clean75(f['geometry']['coordinates'][0], True)
+    if abs(r[0][0] - r[-1][0]) < 1e-6 and abs(r[0][1] - r[-1][1]) < 1e-6: r = r[:-1]
+    RING75.append(r)
+    BD[con_ids.index(f['id'])].append(dens75(r, True, 2.0, 12.0, 2))   # highlight outline – coarser is enough
+print('Granice: usunięto', DROPPED[0], 'niedokładnych wierzchołków')
 
 # ---------------------------------------------------------------- Messier
 MPL = {'M1':'Mgławica Kraba','M6':'Gromada Motyl','M7':'Gromada Ptolemeusza','M8':'Mgławica Laguna',
@@ -145,6 +214,11 @@ MPL = {'M1':'Mgławica Kraba','M6':'Gromada Motyl','M7':'Gromada Ptolemeusza','M
  'M82':'Galaktyka Cygaro','M83':'Południowy Wiatraczek','M87':'Virgo A','M97':'Mgławica Sowa',
  'M101':'Galaktyka Wiatraczek','M104':'Galaktyka Sombrero','M4':'Gromada w Skorpionie','M5':'Gromada w Wężu',
  'M35':'Gromada w Bliźniętach','M41':'Gromada pod Syriuszem','M39':'Gromada w Łabędziu','M3':'Gromada w Psach Gończych'}
+def hms(t): h, m, x = t.split(':'); return (float(h) + float(m) / 60 + float(x) / 3600) * 15
+def dms(t):
+    sg = -1 if t.startswith('-') else 1; d, m, x = t.lstrip('+-').split(':'); return sg * (float(d) + float(m) / 60 + float(x) / 3600)
+# OpenNGC lists M102 as a duplicate of M101; M102 keeps the d3-celestial position (NGC 5866)
+ONGC = {int(r['M']): r for r in csv.DictReader(open(os.path.join(RAW, 'openngc_messier.csv'), encoding='utf-8')) if r['Name'] != 'M102'}
 M = []
 for f in load('messier.json')['features']:
     p = f['properties']; lon, lat = f['geometry']['coordinates']
@@ -153,7 +227,13 @@ for f in load('messier.json')['features']:
         a, b = (float(x) for x in dim.split('x')) if 'x' in dim else (float(dim), float(dim))
     except Exception:
         a = b = 5.0
-    M.append([f['id'], round(ra360(lon), 3), round(lat, 3), p['type'], p['mag'], a, b, MPL.get(f['id'], ''), p.get('desig', '')])
+    pa = None
+    o = ONGC.get(int(f['id'][1:]))
+    if o:   # OpenNGC: precise centre, size and position angle
+        lon = hms(o['RA']); lat = dms(o['Dec'])
+        if fnum(o['MajAx']): a = fnum(o['MajAx']); b = fnum(o['MinAx']) or a
+        pa = fnum(o['PosAng'])
+    M.append([f['id'], round(ra360(lon), 4), round(lat, 4), p['type'], p['mag'], a, b, MPL.get(f['id'], ''), p.get('desig', ''), pa])
 
 # ---------------------------------------------------------------- constellation lookup grid
 print('Siatka gwiazdozbiorów…')
@@ -174,11 +254,9 @@ GV75 = GV @ P1875.T                       # grid cell centres in the B1875 frame
 V75 = V @ P1875.T                         # stars in the B1875 frame
 star_con = [-1] * NSTAR
 POLYS = []
-for f in bounds:
+for fi, f in enumerate(bounds):
     ci = con_ids.index(f['id']); pts = []
-    ring = []
-    for lon, lat in f['geometry']['coordinates'][0]:   # vertex J2000 -> B1875 (round values there)
-        w = P1875 @ vec(ra360(lon), lat); ring.append((math.degrees(math.atan2(w[1], w[0])) % 360, math.degrees(math.asin(w[2]))))
+    ring = RING75[fi]                                   # cleaned vertices in B1875
     for k in range(len(ring)):                          # edges are exact constant-RA / constant-Dec lines in B1875
         (r1, d1), (r2, d2) = ring[k], ring[(k + 1) % len(ring)]
         dra = ((r2 - r1 + 180) % 360) - 180; steps = max(1, int(max(abs(dra), abs(d2 - d1)) / 0.1))
@@ -205,7 +283,7 @@ rle += [cur, cnt]
 
 cellarea = (360 / GW) * (180 / GH) * np.cos(GDE)
 for k in range(NSTAR):
-    if star_con[k] < 0: star_con[k] = int(grid[min(GH - 1, int((S[k * STRIDE + 1] / 1000 + 90) / 180 * GH)), min(GW - 1, int(S[k * STRIDE] / 1000 / 360 * GW))])
+    if star_con[k] < 0: star_con[k] = int(grid[min(GH - 1, int((S[k * STRIDE + 1] / 10000 + 90) / 180 * GH)), min(GW - 1, int(S[k * STRIDE] / 10000 / 360 * GW))])
     S[k * STRIDE + 4] = star_con[k]
 for ci, co in enumerate(con_out):
     m = grid == ci
@@ -267,16 +345,19 @@ bulge = 0.30 * np.exp(-(dl / np.radians(11)) ** 2 - ((BB + np.radians(1.5)) / np
 out = np.clip(0.42 * wrapblur(tex, 1.6) + 0.42 * wrapblur(tex, 10.0) + 0.5 * wrapblur(tex, 34.0) + disk + bulge, 0, 1) ** 0.9
 buf = io.BytesIO(); Image.fromarray((out * 255).astype(np.uint8), 'L').save(buf, 'WEBP', quality=90, method=6)
 
-print('Nazwy gwiazd usunięte lub poprawione po weryfikacji:', len(DROPPED))
-for d_ in DROPPED: print('   ', d_)
-# gwiazdy binarnie: ra u24 (0,001°), dec+90° u24 (0,001°), (mag+2)·100 u16, B−V·50+128 u8, gwiazdozbiór u8, HIP u24
+# gwiazdy binarnie (19 bajtów): ra u24 (0,0001°), dec+90° u24, (mag+2)·100 u16, B−V·50+128 u8, gwiazdozbiór u8,
+# HIP u24, ruch własny μα* i μδ i16 (mas/rok), odległość u16 = log10(pc)·10⁴ (0 = nieznana)
 buf_s = bytearray()
 for k in range(NSTAR):
     ra_, de_, mg, bv_, cn, hp, _ = S[k * STRIDE:(k + 1) * STRIDE]
-    buf_s += (ra_ % 360000).to_bytes(3, 'little') + (de_ + 90000).to_bytes(3, 'little')
+    buf_s += (ra_ % 3600000).to_bytes(3, 'little') + (de_ + 900000).to_bytes(3, 'little')
     buf_s += struct.pack('<HBB', mg + 200, max(0, min(255, round(bv_ / 2) + 128)), cn) + hp.to_bytes(3, 'little')
+    pa_, pd_ = PM[k]; d = DIST[k]
+    buf_s += struct.pack('<hhH', max(-32767, min(32767, round(pa_))), max(-32767, min(32767, round(pd_))),
+                         max(1, min(65535, round(math.log10(d) * 10000))) if d >= 1 else (1 if d > 0 else 0))
+SPT = sorted(set(SPEC.values())); SPI = {t: n for n, t in enumerate(SPT)}
 print(f'Gwiazdy: {NSTAR} (do {max(S[2::STRIDE]) / 100} mag), nazwane: {sum(1 for v in NM.values() if v[0])}')
-data = {'cons': con_out, 'SB': base64.b64encode(bytes(buf_s)).decode(), 'NS': NSTAR, 'N': NM, 'L': L, 'B': B, 'BD': BD, 'M': M, 'CG': rle}
+data = {'cons': con_out, 'SB': base64.b64encode(bytes(buf_s)).decode(), 'NS': NSTAR, 'SBW': 19, 'N': NM, 'SPT': SPT, 'SP': {k: SPI[v] for k, v in SPEC.items()}, 'L': L, 'B': B, 'BD': BD, 'M': M, 'CG': rle}
 js = ('// Wygenerowane przez tools/prep_data.py – nie edytuj ręcznie.\n'
       'const SKYDATA=' + json.dumps(data, ensure_ascii=False, separators=(',', ':')) + ';\n'
       'const MWTEX="data:image/webp;base64,' + base64.b64encode(buf.getvalue()).decode() + '";\n')

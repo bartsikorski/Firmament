@@ -20,3 +20,15 @@ desktop.ini
 
 # podgląd arkusza ikon z tools/prep_art.py
 tools/icons-preview.png
+
+# skany rycin Bodego i pliki pośrednie (pobierane i odtwarzane przez tools/bode/)
+tools/bode/plates/
+tools/bode/work/
+
+# pomocnik do aktualizacji repozytorium (zostaje tylko lokalnie)
+aktualizuj-repo.cmd
+
+# pliki danych z poprzednich wersji – nieużywane, można je usunąć
+tools/raw/stars.6.json
+tools/raw/stars.8.json
+tools/raw/starnames.json

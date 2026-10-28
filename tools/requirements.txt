@@ -3,3 +3,5 @@
 numpy>=1.24
 scipy>=1.10
 Pillow>=10.0
+# tylko do odtworzenia rycin Bodego od zera (tools/bode/):
+opencv-python-headless>=4.8

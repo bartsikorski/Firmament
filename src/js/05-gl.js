@@ -70,10 +70,15 @@ void main(){
   float vr=fbm3(eq*1.4+4.0)*0.5+0.5;
   float base=clamp(0.30+0.45*vr+0.55*m*uMwAmt,0.0,1.25)*(1.0-uVig*min(rr*rr*0.85,0.9));
   vec3 col=mix(uBg1,uBg0,base);
-  float n1=fbm(gal*8.0); float rid=1.0-abs(snoise(gal*21.0+2.7)); rid=rid*rid*rid; float n3=snoise(gal*44.0+1.9);
-  float cloud=m*(0.66+0.46*n1+0.17*rid+0.12*n3);
-  float lane=smoothstep(0.05,0.6,fbm3(gal*9.0+3.1)*0.5+0.32)*exp(-pow(gal.z/0.075,2.0));
-  float wisp=smoothstep(0.55,0.95,1.0-abs(snoise(gal*13.0+8.1)));
+  // gentle domain warp breaks the closed rings of plain ridged noise; most structure comes from fbm,
+  // with a fine grain for the mottled look of unresolved star clouds
+  vec3 w=vec3(snoise(gal*5.0+1.3),snoise(gal*5.0+5.1),snoise(gal*5.0+9.7));
+  float n1=fbm(gal*8.0+w*0.3);
+  float r1=1.0-abs(snoise(gal*21.0+w*0.7+2.7)); float rid=r1*r1*r1;
+  float n3=fbm3(gal*52.0+w*0.4+1.9);
+  float cloud=m*(0.66+0.5*n1+0.07*rid+0.16*n3);
+  float lane=smoothstep(0.05,0.6,fbm3(gal*9.0+w*0.35+3.1)*0.5+0.32)*exp(-pow(gal.z/0.075,2.0));
+  float wisp=smoothstep(0.62,0.97,1.0-abs(snoise(gal*12.0+w*0.9+8.1)))*(0.5+0.5*fbm3(gal*3.0+6.2));
   cloud*=1.0-uDust*clamp(lane*0.85+wisp*0.35*m,0.0,0.92);
   cloud=max(cloud,0.0);
   vec3 mwc=mix(uMwLo,uMwHi,smoothstep(0.08,1.0,cloud));
@@ -116,7 +121,7 @@ void main(){
 const VS_STAR = GLSL_HOR + `
 attribute vec3 aPos; attribute vec3 aInfo;
 uniform mat3 uEqToLoc,uEqToHor,uHorToLoc; uniform vec2 uRes; uniform float uScale,uProj,uRefr;
-uniform float uMagLim,uSize,uSizeExp,uBright,uGlow,uSpike,uSat,uTwinkle,uTime,uPR,uObs,uGroundOn,uStarVis,uSpectral,uMaxPt;
+uniform float uMagLim,uSize,uSizeExp,uBright,uGlow,uSpike,uSat,uTwinkle,uTime,uPR,uObs,uGroundOn,uStarVis,uSpectral,uMaxPt,uTele;
 uniform vec3 uHot,uMid,uCool;
 varying vec3 vCol; varying float vCore,vHalo,vHaloR,vSpike,vSize,vA;
 void main(){
@@ -144,15 +149,17 @@ void main(){
   float spikeL=core*10.0*uSpike;
   float sz=2.0*max(max(core*2.8, vHalo>0.002 ? vHaloR*4.2 : 0.0), vSpike>0.002 ? spikeL : 0.0)+2.0;
   vSize=min(sz,uMaxPt); vCore=core;
-  float t=clamp((aInfo.y+0.33)/2.1,0.0,1.0);
+  // colour from B−V: blue-white (B) – white (A/F) – yellow-orange (G/K) – orange-red (M)
+  float t=clamp((aInfo.y+0.3)/1.75,0.0,1.0);
   vec3 c= t<0.4 ? mix(uHot,uMid,t/0.4) : mix(uMid,uCool,(t-0.4)/0.6);
   c=mix(uMid,c,uSpectral);
-  float g=dot(c,vec3(0.299,0.587,0.114)); vCol=mix(vec3(g),c,uSat);
+  // in a telescope-like field the eye sees star colours more readily (Albireo: gold and blue)
+  float g=dot(c,vec3(0.299,0.587,0.114)); vCol=mix(vec3(g),c,mix(uSat,max(uSat,1.25),uTele));
   gl_PointSize=vSize;
   gl_Position=vec4(p*uScale/(0.5*uRes),0.0,1.0);
 }`;
 const FS_STAR = PREC + `
-varying vec3 vCol; varying float vCore,vHalo,vHaloR,vSpike,vSize,vA;
+varying vec3 vCol; varying float vCore,vHalo,vHaloR,vSpike,vSize,vA; uniform float uTele;
 void main(){
   vec2 d=(gl_PointCoord-0.5)*vSize; float r2=dot(d,d); float r=sqrt(r2);
   float core=exp(-r2/(vCore*vCore*0.85));
@@ -161,7 +168,7 @@ void main(){
   if(vSpike>0.0){ float w=0.6; float L=vSize*0.17; sp=vSpike*(exp(-abs(d.y)/w)*exp(-abs(d.x)/L)+exp(-abs(d.x)/w)*exp(-abs(d.y)/L)); }
   float edge=1.0-smoothstep(0.38,0.5,length(gl_PointCoord-0.5));
   float I=(core+halo+sp)*edge;
-  vec3 col=mix(vCol,vec3(1.0),clamp(core*0.5,0.0,1.0));
+  vec3 col=mix(vCol,vec3(1.0),clamp(core*(0.5-0.3*uTele),0.0,1.0));
   gl_FragColor=vec4(col*I*vA,1.0);
 }`;
 const VS_ART = GLSL_HOR + `
@@ -192,7 +199,7 @@ void main(){
   float lum=a*a*0.9+a*0.24;
   float band=fract(dot(vUv,vec2(0.62,0.38))-uTime*0.11);
   float sweep=uHi*pow(max(0.0,1.0-abs(band-0.5)*7.0),4.0)*smoothstep(0.12,0.5,a);
-  vec3 col=uTint*lum*(1.0+0.75*uHi)+vec3(0.92,0.96,1.0)*sweep*0.6;
+  vec3 col=uTint*lum*(1.0+0.5*uHi)+vec3(0.92,0.96,1.0)*sweep*0.6;
   float k=uAlpha*e;
   gl_FragColor=vec4(col*k, min(0.9,cov*k*uInk*(1.0+0.35*uHi)));   // premultiplied: sky*(1-alpha)+col
 }`;
@@ -351,7 +358,7 @@ class SkyGL {
       upMat(gl, u.uEqToLoc, R.eqToLoc); upMat(gl, u.uEqToHor, R.eqToHor); upMat(gl, u.uHorToLoc, R.horToLoc); gl.uniform1f(u.uRefr, R.refr ? 1 : 0);
       gl.uniform1f(u.uMagLim, R.magLim); gl.uniform1f(u.uSize, R.size); gl.uniform1f(u.uSizeExp, R.sizeExp); gl.uniform1f(u.uBright, R.bright);
       gl.uniform1f(u.uGlow, p.glow); gl.uniform1f(u.uSpike, p.spikes); gl.uniform1f(u.uSat, p.sat); gl.uniform1f(u.uTwinkle, R.twinkle); gl.uniform1f(u.uTime, R.time);
-      gl.uniform1f(u.uPR, R.pr); gl.uniform1f(u.uObs, R.obs ? 1 : 0); gl.uniform1f(u.uGroundOn, R.groundOn ? 1 : 0); gl.uniform1f(u.uStarVis, R.starVis); gl.uniform1f(u.uSpectral, R.spectral); gl.uniform1f(u.uMaxPt, this.maxPt);
+      gl.uniform1f(u.uPR, R.pr); gl.uniform1f(u.uObs, R.obs ? 1 : 0); gl.uniform1f(u.uGroundOn, R.groundOn ? 1 : 0); gl.uniform1f(u.uStarVis, R.starVis); gl.uniform1f(u.uSpectral, R.spectral); gl.uniform1f(u.uMaxPt, this.maxPt); gl.uniform1f(u.uTele, R.tele);
       gl.uniform3fv(u.uHot, c.hot); gl.uniform3fv(u.uMid, c.mid); gl.uniform3fv(u.uCool, c.cool);
       gl.bindBuffer(gl.ARRAY_BUFFER, this.starBuf);
       gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 24, 0);
@@ -364,7 +371,8 @@ class SkyGL {
 }
 // star vertex data
 const realStars = new Float32Array(NS * 6);
-{ const rnd = mulberry32(7); for (let i = 0; i < NS; i++) { realStars.set([STAR.v[i * 3], STAR.v[i * 3 + 1], STAR.v[i * 3 + 2], STAR.mag[i], STAR.bv[i], rnd()], i * 6); } }
+function fillRealStars() { const rnd = mulberry32(7); for (let i = 0; i < NS; i++) realStars.set([STAR.v[i * 3], STAR.v[i * 3 + 1], STAR.v[i * 3 + 2], STAR.mag[i], STAR.bv[i], rnd()], i * 6); }
+fillRealStars();
 let allStars = realStars;
 function genFaint(img) {
   const cv = document.createElement('canvas'); cv.width = 512; cv.height = 256; const c2 = cv.getContext('2d', { willReadFrequently: true }); c2.drawImage(img, 0, 0, 512, 256);
@@ -388,8 +396,9 @@ function genFaint(img) {
 }
 
 // ---------------------------------------------------------------- constellation illustrations
-/* Each drawing is pinned to three stars (as in Stellarium): B maps image coordinates (u, v, 1) to
-   a vector on the celestial sphere, B = S · P⁻¹, where S holds the anchor stars and P their image positions.
+/* Each drawing is pinned to three points on the sky (as in Stellarium): B maps image coordinates (u, v, 1) to
+   a vector on the celestial sphere, B = S · P⁻¹, where S holds the anchor directions and P their image positions.
+   The Bode figures are gnomonic images with anchors equidistant from the tangent point, so the mapping is exact.
    A 12×12 mesh follows the projection's curvature. */
 function inv3(m) {
   const [a, b, c, d, e, f, g, h, i] = m, A = e * i - f * h, B = -(d * i - f * g), C = d * h - e * g, det = a * A + b * B + c * C;
@@ -449,9 +458,9 @@ function buildR(view, lk, o) {
     obs, groundOn: obs && layers.ground, day, twi, sunHor: si.hor, dayZen, dayHor, twiCol, edge: c.bg1.map(x => x * 0.4),
     airglow: style.airglow, grain: style.grain, vignette: style.vignette, time: o.time, mwOn: layers.mw,
     stars: layers.stars, faint: layers.faint, magLim: magLimit(fovEff), size: style.size * zoomSize(fovEff) * (o.sizeMul || 1), sizeExp: SIZEEXP[style.sizeMode] || 0.27,
-    bright: style.bright * ex, twinkle: settings.reduce ? 0 : style.twinkle, starVis: Math.max(0.02, 1 - 0.97 * day - 0.45 * twi), spectral: style.spectral
+    tele: smooth(3, 0.5, fovEff), bright: style.bright * ex, twinkle: settings.reduce ? 0 : style.twinkle, starVis: Math.max(0.02, 1 - 0.97 * day - 0.45 * twi), spectral: style.spectral
   };
-  R.skyKey = [view.V.map(x => x.toFixed(6)).join(','), view.scale.toFixed(3), view.proj, o.pr, ex.toFixed(3), view.W, view.H, view.refr ? 'r' : '', ...CKEYS.map(([k]) => c[k].map(x => x.toFixed(3)).join(',')), PKEYS.map(k => lk.p[k].toFixed(3)).join(','), style.vignette, layers.mw].join('|');
+  R.skyKey = [view.V.map(x => x.toFixed(9)).join(','), view.scale.toFixed(3), view.proj, o.pr, ex.toFixed(3), view.W, view.H, view.refr ? 'r' : '', ...CKEYS.map(([k]) => c[k].map(x => x.toFixed(3)).join(',')), PKEYS.map(k => lk.p[k].toFixed(3)).join(','), style.vignette, layers.mw].join('|');
   return R;
 }
 

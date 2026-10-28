@@ -1,0 +1,6 @@
+HYG Database 4.1 – David Nash (astronexus), https://github.com/astronexus/HYG-Database
+Licencja / licence: Creative Commons Attribution-ShareAlike 4.0 International (CC BY-SA 4.0)
+https://creativecommons.org/licenses/by-sa/4.0/legalcode
+
+Plik hyg_v41_mag8.csv jest wycinkiem hygdata_v41.csv: gwiazdy do 8 mag z numerem HIP lub HR, wybrane kolumny.
+hyg_v41_mag8.csv is an extract of hygdata_v41.csv: stars to mag 8 with a HIP or HR number, selected columns.

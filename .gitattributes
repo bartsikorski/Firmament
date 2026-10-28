@@ -9,3 +9,4 @@ Firmament.html linguist-generated=true -diff
 src/data/skydata.js linguist-generated=true -diff
 src/data/artdata.js linguist-generated=true -diff
 tools/raw/** linguist-vendored=true -diff
+tools/bode/models/** linguist-generated=true -diff

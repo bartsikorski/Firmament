@@ -1,0 +1,6 @@
+OpenNGC – Mattia Verga, https://github.com/mattiaverga/OpenNGC
+Licencja / licence: Creative Commons Attribution-ShareAlike 4.0 International (CC BY-SA 4.0)
+https://creativecommons.org/licenses/by-sa/4.0/legalcode
+
+Plik openngc_messier.csv jest wycinkiem (tylko obiekty Messiera) z NGC.csv i addendum.csv.
+openngc_messier.csv is an extract (Messier objects only) of NGC.csv and addendum.csv.

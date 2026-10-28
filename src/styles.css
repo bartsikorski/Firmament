@@ -45,6 +45,7 @@ body.photo .scrim { opacity: 0; }
 #ov { cursor: grab; }
 #ov.dragging { cursor: grabbing; }
 #ov.pointing { cursor: pointer; }
+#ov.picking { cursor: crosshair; }
 .chrome { transition: opacity .35s ease; }
 
 /* ---------- corner brackets ---------- */
@@ -132,7 +133,7 @@ body.photo .scrim { opacity: 0; }
 .btn kbd { font-weight: 500; color: var(--ink-3); letter-spacing: .14em; }
 .btn.sm { min-height: 28px; padding: 0 10px; justify-content: center; }
 .btns { display: flex; gap: 6px; flex-wrap: wrap; }
-.btns .btn { flex: 1; justify-content: center; }
+.btns .btn { flex: 1 1 auto; justify-content: center; white-space: nowrap; }
 .seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 6px; }
 .seg button { height: 30px; border: 1px solid var(--line); font-size: 9.5px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-2); white-space: nowrap; padding: 0 4px; transition: all .15s; }
 .seg button:hover { color: var(--ink); border-color: var(--line-3); }
@@ -219,6 +220,17 @@ textarea.txt { height: 80px; padding: 8px 10px; font-size: 10.5px; line-height: 
 .tgt .del { color: var(--ink-3); font-size: 14px; padding: 0 4px; }
 .tgt .del:hover { color: #fff; }
 .empty { font-size: 10.5px; color: var(--ink-3); }
+/* meridian section */
+.mer-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.mer-head b { font: 500 15px var(--f-mono); color: #fff; letter-spacing: .04em; }
+.mer-head small { font-size: 10px; color: var(--ink-3); text-align: right; }
+.mer-acts { display: flex; gap: 6px; }
+.mer-acts .btn { flex: 1; }
+.mer-acts .btn.on { border-color: rgba(168, 208, 255, .7); background: rgba(168, 208, 255, .08); }
+.mer-list { display: flex; flex-wrap: wrap; gap: 5px; }
+.mer-list .chip { display: inline-flex; align-items: center; gap: 6px; letter-spacing: .1em; }
+.mer-list .chip .ico { opacity: .7; }
+.mer-list .chip.on .ico { opacity: 1; }
 .keys { display: grid; grid-template-columns: auto 1fr; gap: 7px 14px; font-size: 10.5px; color: var(--ink-2); align-items: baseline; }
 .keys kbd { font-size: 10px; color: var(--ink); border: 1px solid var(--line); padding: 1px 6px; justify-self: start; white-space: nowrap; }
 

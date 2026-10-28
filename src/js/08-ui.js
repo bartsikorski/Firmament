@@ -92,7 +92,7 @@ $('#speed').addEventListener('change', e => { st.speed = +e.target.value; });
 let hourBase = Date.now();
 mkSlider($('#r-hour'), { id: 'hour', label: 'Przesunięcie czasu', min: -12, max: 12, get: () => clamp((st.time - hourBase) / 3600000, -12, 12), set: v => { st.time = hourBase + v * 3600000; timeChanged(); }, fmt: v => (v >= 0 ? '+' : '−') + pl(Math.abs(v), 1) + ' h', help: 'Przesuń czas o kilka godzin – obserwuj wschody i zachody.' });
 function setTime(t) { st.time = t; hourBase = t; timeChanged(); }
-function timeChanged() { bodies = calcBodies(); bodiesT = st.time; Fcache.key = ''; invalidate(); syncTimeUI(true); if (sel || selCon >= 0) updateCard(true); }
+function timeChanged() { refreshStarEpoch(); if (meridian.on && meridian.local) syncMerUI(); bodies = calcBodies(); bodiesT = st.time; Fcache.key = ''; invalidate(); syncTimeUI(true); if (sel || selCon >= 0) updateCard(true); }
 let lastTimeSync = 0;
 function syncTimeUI(force) {
   const now = performance.now(); if (!force && now - lastTimeSync < 250) return; lastTimeSync = now;
@@ -339,7 +339,7 @@ qIn.addEventListener('keydown', e => {
 qIn.addEventListener('blur', () => setTimeout(() => { qRes.hidden = true; }, 120));
 
 // ---------------------------------------------------------------- field-of-view block, readouts, status, stats
-const FOVMIN = 0.4, FOVMAX = 360, LFOV = Math.log(FOVMAX / FOVMIN);
+const FOVMIN = 0.1, FOVMAX = 360, LFOV = Math.log(FOVMAX / FOVMIN);
 const zbRange = $('#zb-range');
 zbRange.addEventListener('input', () => { const f = FOVMAX * Math.exp(-LFOV * zbRange.value / 1000); stopTour(); zoomBy(clampFov(f) / (zoomA ? zoomA.target : st.fov)); });
 function fmtFov(f) { const d = f < 10 ? 2 : 1; const s = f.toFixed(d).split('.'); return `${s[0]}<small>,${s[1]}</small><sup>°</sup>`; }

@@ -20,7 +20,7 @@ function fmtLocTime(ms) { const p = locParts(ms); return `${pad2(p.h)}:${pad2(p.
 function fmtLocDate(ms, wd) { const p = locParts(ms); return `${wd ? WD[p.wd] + ', ' : ''}${pad2(p.d)}.${pad2(p.mo)}.${p.y}`; }
 function fmtUtcOff(ms) { const o = locOffsetMin(ms), a = Math.abs(o); return `UTC${o < 0 ? '−' : '+'}${Math.floor(a / 60)}${a % 60 ? ':' + pad2(a % 60) : ''}`; }
 const maxFov = () => st.proj === 0 ? 220 : st.proj === 1 ? 360 : 180;
-const clampFov = f => clamp(f, 0.4, maxFov());
+const clampFov = f => clamp(f, 0.1, maxFov());   // 0,1° – pole lunety: rozdziela pary takie jak Albireo (34″)
 let W = 800, H = 600;
 let Fcache = { key: '', F: I3 };
 function frameF() {

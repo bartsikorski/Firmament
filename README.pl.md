@@ -4,22 +4,27 @@ Interaktywna mapa nieba w przeglądarce: prawdziwe gwiazdy, 88 gwiazdozbiorów z
 
 [English](README.md) · interfejs programu jest po polsku
 
-![Niebo letnie w wyglądzie Realistycznym](docs/screenshot-sky.jpg)
+![Firmament zaraz po otwarciu: centrum Drogi Mlecznej, nazwy gwiazdozbiorów z ikonami i ilustracja Strzelca pod kursorem](docs/screenshot-sky.jpg)
 
-| Wygląd „Mitologia” | Wskazany gwiazdozbiór z opisem i podpisami atrybutów |
-|---|---|
-| ![Ilustracje gwiazdozbiorów](docs/screenshot-mythology.jpg) | ![Orion](docs/screenshot-orion.jpg) |
+<p align="center"><sub>Zaraz po otwarciu: centrum Drogi Mlecznej, nazwy wszystkich gwiazdozbiorów z ikonami i ilustracja gwiazdozbioru wskazanego kursorem.</sub></p>
+
+| Wygląd „Mitologia”, Warszawa o 22:00 | Karta gwiazdozbioru i podpisy atrybutów | Widok z miejsca o zmierzchu |
+|---|---|---|
+| ![Ilustracje wszystkich gwiazdozbiorów na jesiennym niebie](docs/screenshot-mythology.jpg) | ![Zaznaczony Orion: karta z opisem i podpisy na rysunku](docs/screenshot-orion.jpg) | ![Droga Mleczna zachodzi nad horyzontem po stronie południowo-zachodniej](docs/screenshot-observer.jpg) |
 
 ## Co potrafi
 
-- **Ok. 41 tys. prawdziwych gwiazd do 8 mag** z katalogu Hipparcos, w barwach odpowiadających temperaturze. Po przybliżeniu dochodzi dekoracyjne tło słabszych gwiazd. Znane gwiazdy, takie jak Syriusz, Gwiazda Polarna, Wega czy Algol, mają podpis zawsze.
+- **Ok. 41 tys. prawdziwych gwiazd do 8 mag** z bazy HYG (Hipparcos), w barwach odpowiadających temperaturze, przesuniętych o ruch własny na pokazywaną datę. Po przybliżeniu dochodzi dekoracyjne tło słabszych gwiazd. Znane gwiazdy, takie jak Syriusz, Gwiazda Polarna, Wega czy Algol, mają podpis zawsze; nazwy pochodzą z oficjalnej listy IAU, a najbardziej znane mają polską formę.
+- **Karta gwiazdy** podaje odległość w latach świetlnych i parsekach (z paralaksy Hipparcosa, z zaznaczeniem, gdy pomiar jest niepewny), rzeczywistą jasność w porównaniu ze Słońcem, typ widmowy i temperaturę.
+- **Gwiazdy podwójne:** bliskie pary, np. Albireo, Mizar i Alkor czy ε Lutni, mają opis i przycisk „Pokaż parę”. Przybliżenie sięga 0,1°, gdzie składniki się rozdzielają i widać ich barwy (Albireo: złota i niebieska).
 - **Wszystkie 88 gwiazdozbiorów:** linie figur, granice IAU i nazwy w trzech wielkościach (najmniej znane najmniejsze), każda z małą ikoną figury.
-  - Półprzezroczyste **ilustracje** ze Stellarium. Wskazany kursorem gwiazdozbiór podświetla się, a na rysunku pojawiają się podpisy atrybutów, np. maczuga, głowa Meduzy czy kłos zboża.
+  - Półprzezroczyste **ilustracje** z atlasu Johanna Elerta Bodego *Uranographia* (1801), oczyszczone z siatki i symboli gwiazd i dokładnie nałożone na niebo. Wskazany kursorem gwiazdozbiór podświetla się, a na rysunku pojawiają się podpisy atrybutów, np. maczuga, głowa Meduzy czy kłos zboża.
   - Karta każdego gwiazdozbioru mówi, co przedstawia figura i kto ją wprowadził: Ptolemeusz, Heweliusz, Lacaille…
 - **Obiekty Messiera, planety, Księżyc z fazą, Słońce, Droga Mleczna.** Cefeidy mają w karcie okres pulsacji i zakres jasności.
 - **Widok z miejsca:** niebo nad wybranym miastem albo współrzędnymi o wybranej porze, z precesją, refrakcją, horyzontem, zmierzchem i strefą czasową miejsca. Upływ czasu można przyspieszać.
 - **14 wyglądów** (Realistyczny, Mitologia, Porcelana, Atlas…), edytor palety oraz eksport i import własnych stylów.
 - **Wycieczka po niebie** (19 przystanków z podpisami) i 40 celów w zakładce „Na co warto spojrzeć”.
+- **Południki:** dowolne koło godzinne (wskazane na niebie albo suwakiem) lub południk miejscowy nad miejscem obserwacji. Panel wypisuje gwiazdozbiory, które przecina, od północy na południe, a widok może przejechać wzdłuż niego, podpisując kolejne (`L`).
 - **Tryb fotograficzny:** kadry 16:9, 3:2, 1:1 i 4:5, eksport do 6K.
 - **Jakość obrazu:** bufory HDR, progresywne wygładzanie po zatrzymaniu i płynność w ruchu.
 
@@ -42,7 +47,8 @@ Program można też udostępnić przez **GitHub Pages**: *Settings → Pages →
 | `N` | niebo dziś o 22:00 | `P` | tryb fotograficzny (`Enter` – zdjęcie) |
 | `R` | losowy cel | `spacja` | upływ czasu |
 | `Q` / `E` | obrót | `+` / `−` | zoom |
-| `/` | wyszukiwarka | `Esc` | odznacz, wyjdź |
+| `L` | przejazd wzdłuż południka | `/` | wyszukiwarka |
+| `Esc` | odznacz, wyjdź | | |
 
 Ustawienia, własne style i zapisane widoki są pamiętane w przeglądarce (localStorage).
 
@@ -69,10 +75,13 @@ Wystarczy Python 3, bez dodatkowych bibliotek.
 | `src/js/06-overlay.js` | Nakładka 2D: linie, nazwy z ikonami, podpisy, obiekty, planety |
 | `src/js/07-main.js` | Pętla renderu, animacje, wybieranie obiektów, karta, wycieczka, tryb foto |
 | `src/js/08-ui.js` | Panel, suwaki, wyszukiwarka, statystyki |
-| `src/js/09-boot.js` | Start programu |
+| `src/js/10-meridian.js` | Południki: rysowanie, przecinane gwiazdozbiory, przejazd |
+| `src/js/99-boot.js` | Start programu |
 | `src/data/content.js` | **Treści pisane ręcznie:** opisy 88 figur, podpisy atrybutów, znane gwiazdy, cele wycieczki |
 | `src/data/skydata.js`, `src/data/artdata.js` | Dane wygenerowane przez narzędzia (nie edytuj ręcznie) |
+| `tools/fetch_sources.py` | Pobranie katalogów HYG, IAU i OpenNGC i zapisanie potrzebnych wycinków w `tools/raw/` |
 | `tools/prep_data.py`, `tools/prep_art.py` | Generatory danych z plików w `tools/raw/` |
+| `tools/bode/` | Zamiana skanów atlasu Bodego w ilustracje rozpięte na niebie (`tools/raw/bode/`); opis w [`tools/bode/README.md`](tools/bode/README.md) |
 | `build.py` | Składanie `Firmament.html` |
 | `index.html`, `.nojekyll` | Przekierowanie na `Firmament.html` dla GitHub Pages; `.nojekyll` wyłącza przetwarzanie strony przez Jekyll |
 
@@ -82,40 +91,47 @@ Potrzebne tylko po zmianie `tools/*.py` albo plików w `tools/raw/`:
 
 ```
 pip install -r tools/requirements.txt
+python tools/fetch_sources.py  # opcjonalnie: świeże kopie katalogów gwiazd, nazw i obiektów Messiera (ok. 40 MB)
 python tools/prep_data.py      # gwiazdy, gwiazdozbiory, Droga Mleczna (kilka minut)
 python tools/prep_art.py       # ilustracje i ikony (kilkadziesiąt sekund)
 python build.py
 ```
 
+Same ilustracje powstają ze skanów atlasu Bodego za pomocą skryptów z `tools/bode/` (opis w tamtejszym README); ich wynik jest już w `tools/raw/bode/`.
+
 Pomocnicze API do testów jest dostępne z konsoli przeglądarki jako `window.__firmament`.
 
 ## Dokładność
 
-Obliczenia sprawdzono z biblioteką astropy (ERFA) i katalogiem SIMBAD:
+Obliczenia sprawdzono z biblioteką astropy (ERFA), katalogiem SIMBAD i niezależną kopią danych:
 
-- **pozycje gwiazd:** 1–2″;
+- **pozycje gwiazd:** Hipparcos (nowa redukcja, J2000) przesunięty o ruch własny na pokazywaną datę; HYG i wcześniejsze dane z d3-celestial zgadzają się z medianą 0,14″;
 - **gwiazdy w widoku z miejsca:** poniżej 0,01° (precesja z J2000 do daty obserwacji, refrakcja);
 - **Słońce i planety:** poniżej 1′ w latach 1900–2100;
 - **Księżyc:** ok. 1′, z paralaksą topocentryczną;
-- **przynależność gwiazd do gwiazdozbiorów:** dokładnie według granic IAU w układzie B1875; powierzchnie gwiazdozbiorów zgadzają się z wartościami IAU.
+- **obiekty Messiera:** środki, rozmiary i ułożenie z OpenNGC (poprzednie dane myliły się przy niektórych obiektach nawet o 19′);
+- **przynależność gwiazd do gwiazdozbiorów:** dokładnie według granic IAU w układzie B1875, w którym każda krawędź biegnie wzdłuż stałej rektascensji albo deklinacji. Granice są przeliczane w tym układzie, co usunęło też błąd danych źródłowych przy biegunie północnym (granica Małej Niedźwiedzicy i Cefeusza była przesunięta nawet o 0,45° na południe). Powierzchnie gwiazdozbiorów zgadzają się z wartościami IAU.
 
-Weryfikacja wychwyciła i usunęła lub poprawiła 31 błędnych nazw gwiazd w danych źródłowych (np. cefeida η Aquilae była podpisana nazwą γ Aql – „Tarazed”). Gwiazdy tła słabsze niż 8 mag są generowane dekoracyjnie (rozkład podąża za Drogą Mleczną) i nie odpowiadają prawdziwym gwiazdom.
+Nazwy gwiazd pochodzą z oficjalnej listy IAU WGSN, co poprawiło kilka nazw odziedziczonych po starszych danych (np. cefeida η Aquilae była kiedyś podpisana „Tarazed”, nazwą γ Aql). Gwiazdy tła słabsze niż 8 mag są generowane dekoracyjnie (rozkład podąża za Drogą Mleczną) i nie odpowiadają prawdziwym gwiazdom.
 
 ## Licencja
 
 - **Kod programu** (`src/js/`, `src/index.html`, `src/styles.css`, `src/data/content.js`, `build.py`, `tools/*.py`): licencja **MIT**, zob. [`LICENSE`](LICENSE).
 - **Dane i grafiki** mają licencje swoich autorów:
-  - ilustracje i ikony gwiazdozbiorów (`src/data/artdata.js`, `tools/raw/art/`) – **Free Art License 1.3** (Stellarium);
-  - dane katalogowe (`src/data/skydata.js`, `tools/raw/*.json`) – **BSD-3-Clause** (d3-celestial) i **CC BY-SA 4.0** (Stellarium).
+  - ilustracje gwiazdozbiorów (`src/data/artdata.js`, `tools/raw/bode/`) – ryciny J. E. Bodego (1801), **domena publiczna**; ich obróbka jest częścią kodu na licencji MIT;
+  - dane katalogowe (`src/data/skydata.js`, `tools/raw/`) – **CC BY-SA 4.0** (HYG, OpenNGC), **BSD-3-Clause** (d3-celestial) i **MIT** (lista nazw IAU w zestawieniu C. Schneck).
 
   Szczegóły i pełne teksty licencji: [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
 
 ## Podziękowania i inspiracje
 
 **Dane i grafiki**
-- [Stellarium](https://stellarium.org): ilustracje gwiazdozbiorów (kultura nieba „modern”), ich punkty zaczepienia i baza nazw gwiazd użyta do weryfikacji. Z niego pochodzi też sposób rozpinania rysunku na sferze według trzech gwiazd.
-- [d3-celestial](https://github.com/ofrohn/d3-celestial) (Olaf Frohn): gwiazdy (Hipparcos), linie, granice i etykiety gwiazdozbiorów, obiekty Messiera, kontury Drogi Mlecznej.
-- Katalog Hipparcos: ESA (1997), *The Hipparcos and Tycho Catalogues*, ESA SP-1200.
+- Johann Elert Bode, *Uranographia sive astrorum descriptio* (Berlin 1801): ilustracje i ikony gwiazdozbiorów. Skany: ETH-Bibliothek Zürich, [e-rara.ch](https://www.e-rara.ch/zut/content/titleinfo/3341734).
+- [Baza HYG](https://github.com/astronexus/HYG-Database) 4.1 (David Nash): gwiazdy z ruchem własnym, odległościami, typami widmowymi i oznaczeniami Bayera i Flamsteeda.
+- [Grupa robocza IAU ds. nazw gwiazd](https://www.iau.org/public/themes/naming_stars/): oficjalne nazwy gwiazd, w zestawieniu [Cory Schneck](https://github.com/cyschneck/iau-star-names).
+- [OpenNGC](https://github.com/mattiaverga/OpenNGC) (Mattia Verga): pozycje, rozmiary i ułożenie obiektów Messiera.
+- [d3-celestial](https://github.com/ofrohn/d3-celestial) (Olaf Frohn): linie, granice i etykiety gwiazdozbiorów, lista obiektów Messiera, kontury Drogi Mlecznej.
+- Katalog Hipparcos: ESA (1997), *The Hipparcos and Tycho Catalogues*, ESA SP-1200; F. van Leeuwen (2007), A&A 474, 653.
 
 **Cudzy kod w programie**
 - [webgl-noise](https://github.com/ashima/webgl-noise) (Ian McEwan, Stefan Gustavson, Ashima Arts, MIT): szum simpleksowy 3D w shaderach nieba i Drogi Mlecznej.
@@ -133,7 +149,7 @@ Weryfikacja wychwyciła i usunęła lub poprawiła 31 błędnych nazw gwiazd w d
 **Inspiracje**
 - Plakat *88 Constellations and Their Brightest Stars* ([Dark Sky New Mexico](https://darkskynewmexico.com/2019-6-3-88-constellations-and-their-brightest-stars/)): pomysł na wygląd „Mitologia”.
 - DeepZoom: paleta barw i minimalistyczny interfejs.
-- Stellarium: ogólny wzór interaktywnego planetarium.
+- Stellarium: ogólny wzór interaktywnego planetarium; z niego pochodzi też sposób rozpinania rysunku na sferze według trzech punktów.
 
 **Weryfikacja:** [astropy](https://www.astropy.org) / ERFA i baza [SIMBAD](https://simbad.u-strasbg.fr) (CDS, Strasburg). **Czcionki:** JetBrains Mono, Cormorant Garamond, Barlow Semi Condensed (Google Fonts, SIL OFL).
 

@@ -107,12 +107,13 @@ let lastT = performance.now(), lastHud = 0, frameEMA = 16;
 function frame(now) {
   const dt = Math.min(0.1, (now - lastT) / 1000); frameEMA = lerp(frameEMA, Math.min(250, now - lastT), 0.06); lastT = now;
   let moving = false;
-  if (st.playing) { st.time += dt * 1000 * st.speed; moving = true; if (Math.abs(st.time - bodiesT) > 30000 || Math.abs(st.speed) < 100) { bodies = calcBodies(); bodiesT = st.time; } syncTimeUI(false); }
+  if (st.playing) { st.time += dt * 1000 * st.speed; moving = true; if (Math.abs(st.time - bodiesT) > 30000 || Math.abs(st.speed) < 100) { bodies = calcBodies(); bodiesT = st.time; } refreshStarEpoch(); syncTimeUI(false); }
   if (fly) { stepFly(dt); moving = true; }
   if (zoomA) { stepZoom(dt); moving = true; }
   if (inertia) { stepInertia(dt); moving = true; }
   if (stepLook(dt)) moving = true;
   if (tour) stepTour(dt);
+  if (ride && stepRide(dt)) moving = true;
   if (stepFocus(dt)) ovDirty = true;
   if (stepArt(dt)) glDirty = true;
   // hover fade
@@ -129,6 +130,13 @@ function frame(now) {
   if (photo.on) photoTick(now);
   if (thumbsDirty && !moving && !drag && now - thumbT > 260 && tabNow === 'style' && !$('#panel').hidden && !photo.on) { thumbsDirty = false; thumbT = now; renderThumbs(); }
   requestAnimationFrame(frame);
+}
+
+/* proper motion: when the shown date drifts by more than a quarter of a year, star positions are recomputed */
+function refreshStarEpoch() {
+  const y = yearOf(st.time); if (Math.abs(y - starEpoch) < 0.25) return;
+  setStarEpoch(y); fillRealStars(); if (allStars !== realStars) allStars.set(realStars, 0);
+  if (sky) sky.setStars(allStars, NS); if (thumbGL) thumbGL.setStars(realStars, NS); invalidate();
 }
 
 // ---------------------------------------------------------------- picking, hover, selection, object card
@@ -224,8 +232,14 @@ function updateCard(soft) {
     kind = 'Gwiazda'; title = STAR.name[i] || designation(i); sub = STAR.name[i] ? `${designation(i)} · ${C ? C.pl : ''}` : (C ? C.pl : '');
     const ce = CEPHEIDS[STAR.hip[i]];
     if (ce) kind = 'Gwiazda zmienna · cefeida';
-    rows = [['Jasność obserwowana', ce ? `${ce.r} mag` : `${pl(STAR.mag[i], 2)} mag`], ce && ['Typ zmienności', ce.t], ce && ['Okres pulsacji', `${pl(ce.p, ce.p < 10 ? 3 : 2)} doby`], ['Indeks barwy B−V', pl(bv, 2)], ['Temperatura (szac.)', `≈ ${(Math.round(T / 100) * 100).toLocaleString('pl-PL')} K`], ['Typ widmowy (szac.)', specClass(bv)], ...posRows(starV(i)), ['Katalog Hipparcos', `HIP ${STAR.hip[i]}`]];
-    acts = `<button class="btn small primary" data-a="center">Wyśrodkuj</button><button class="btn small" data-a="zoom">Przybliż</button><button class="btn small" data-a="con">Gwiazdozbiór</button>`;
+    const D = starDistance(i), sp = starSpec(i), pair = companions(i).slice(0, 2), dbl = doubleNote(i);
+    rows = [['Jasność obserwowana', ce ? `${ce.r} mag` : `${pl(STAR.mag[i], 2)} mag`], ce && ['Typ zmienności', ce.t], ce && ['Okres pulsacji', `${pl(ce.p, ce.p < 10 ? 3 : 2)} doby`],
+      ['Odległość', D.txt], D.pc && ['', `${pl(D.pc, D.pc < 10 ? 2 : D.pc < 100 ? 1 : 0)} pc${D.unc ? ' · pomiar niepewny' : ''}`], D.lum && ['Świeci jak', D.lum],
+      sp ? ['Typ widmowy', esc(sp)] : ['Typ widmowy (szac.)', specClass(bv)], ['Temperatura (szac.)', `≈ ${(Math.round(T / 100) * 100).toLocaleString('pl-PL')} K`], ['Indeks barwy B−V', pl(bv, 2)],
+      ...pair.map(([k, s], n) => [n ? '' : 'Para na niebie', `${esc(STAR.name[k] || designation(k))} · ${pl(STAR.mag[k], 1)} mag · ${fmtSep(s)}`]),
+      ...posRows(starV(i)), STAR.hip[i] && ['Katalog Hipparcos', `HIP ${STAR.hip[i]}`]];
+    if (dbl) extra = `<p class="desc">${esc(dbl)}</p>`;
+    acts = `<button class="btn small primary" data-a="center">Wyśrodkuj</button><button class="btn small" data-a="zoom">Przybliż</button>${pair.length ? '<button class="btn small" data-a="pair">Pokaż parę</button>' : ''}<button class="btn small" data-a="con">Gwiazdozbiór</button>`;
   } else if (sel.type === 'dso') {
     const D = DSO.find(d => d.id === sel.id); kind = DSOT[D.type] || 'Obiekt głębokiego nieba'; title = D.name ? D.name : D.id; sub = `${D.id}${D.ngc ? ' · ' + D.ngc : ''} · ${CONS[D.con].pl}`;
     rows = [['Jasność', `${pl(D.mag, 1)} mag`], ['Rozmiar kątowy', D.a === D.b ? `${pl(D.a, 1)}′` : `${pl(D.a, 1)}′ × ${pl(D.b, 1)}′`], ...posRows(D.v)];
@@ -242,6 +256,41 @@ function updateCard(soft) {
   if (soft && !card.hidden) { const dl = card.querySelector('dl'); const tmp = document.createElement('div'); tmp.innerHTML = cardRows(rows); if (dl) dl.replaceWith(tmp.firstChild); const sb = card.querySelector('.sub'); if (sb) sb.textContent = sub; return; }
   card.innerHTML = html; card.hidden = false; card.style.animation = 'none'; void card.offsetWidth; card.style.animation = '';
 }
+/* Distance from the Hipparcos parallax (via HYG): light years with Polish grammar, parsecs, and how many
+   Suns the star equals in visual light. Parallaxes under 1 mas are below Hipparcos accuracy. */
+const LY_PC = 3.26156;
+function lyWords(x, dec) {
+  const t = pl(x, dec); if (dec > 0) return `${t} roku świetlnego`;
+  const n = Math.round(x), a = n % 10, b = n % 100;
+  return `${t} ${n === 1 ? 'rok świetlny' : a >= 2 && a <= 4 && (b < 12 || b > 14) ? 'lata świetlne' : 'lat świetlnych'}`;
+}
+function sunWords(x) {
+  const d = x < 10 ? 1 : 0, v = x < 10 ? Math.round(x * 10) / 10 : x < 1000 ? Math.round(x) : Math.round(x / 10 ** (Math.floor(Math.log10(x)) - 1)) * 10 ** (Math.floor(Math.log10(x)) - 1);
+  if (x < 0.1) return `≈ ${pl(x, 2)} Słońca`;
+  const n = Math.round(v), a = n % 10, b = n % 100;
+  return `≈ ${d ? pl(v, 1) : v.toLocaleString('pl-PL')} ${d && v % 1 ? 'Słońca' : n === 1 ? 'Słońce' : a >= 2 && a <= 4 && (b < 12 || b > 14) ? 'Słońca' : 'Słońc'}`;
+}
+function starDistance(i) {
+  const pc = STAR.dist[i]; if (!pc) return { txt: 'nieznana' };
+  const ly = pc * LY_PC, plx = 1000 / pc;
+  if (plx < 1) return { txt: 'ponad 3 tys. lat świetlnych', pc: 0, unc: true };
+  let v, d = 0; if (ly < 20) { v = Math.round(ly * 10) / 10; d = v % 1 ? 1 : 0; } else if (ly < 100) v = Math.round(ly); else if (ly < 1000) v = Math.round(ly / 10) * 10; else v = Math.round(ly / 100) * 100;
+  const unc = plx < 3, absM = STAR.mag[i] - 5 * Math.log10(pc / 10);
+  return { txt: (unc ? 'ok. ' : '') + lyWords(v, d), pc, unc, lum: unc ? '' : sunWords(Math.pow(10, 0.4 * (4.83 - absM))) };
+}
+/* other catalogue stars within 5′ – visual double stars such as Albireo. The angle comes from the chord
+   between the unit vectors: acos of a dot product cannot resolve arcseconds in single precision. */
+function companions(i, maxSep = 300) {
+  const v = starV(i), lim = 2 * Math.sin(maxSep / 7200 * D2R), out = [];
+  for (let k = 0; k < NS; k++) {
+    if (k === i) continue;
+    const dx = STAR.v[k * 3] - v[0], dy = STAR.v[k * 3 + 1] - v[1], dz = STAR.v[k * 3 + 2] - v[2], ch = Math.hypot(dx, dy, dz);
+    if (ch < lim) out.push([k, 2 * Math.asin(ch / 2) * R2D * 3600]);
+  }
+  return out.sort((a, b) => a[1] - b[1]);
+}
+const fmtSep = s => s < 60 ? `${pl(s, s < 10 ? 1 : 0)}″` : `${pl(s / 60, 1)}′`;
+const doubleNote = i => { const D = DOUBLES.find(d => d.hip.includes(STAR.hip[i]) || (d.names && d.names.includes(STAR.name[i]))); return D ? D.t : ''; };
 function specClass(bv) { if (bv < -0.25) return 'O / wczesny B'; if (bv < -0.02) return 'B'; if (bv < 0.30) return 'A'; if (bv < 0.58) return 'F'; if (bv < 0.81) return 'G'; if (bv < 1.40) return 'K'; return 'M'; }
 $('#card').addEventListener('click', e => {
   const b = e.target.closest('[data-a]'); if (!b) return; const a = b.dataset.a;
@@ -252,11 +301,12 @@ $('#card').addEventListener('click', e => {
   if (a === 'center') flyTo(tgt, st.fov);
   if (a === 'zoom') flyTo(tgt, Math.max(0.6, st.fov / 3.5));
   if (a === 'con' && sel.type === 'star') select({ type: 'con', ci: STAR.con[sel.i] }, 'fly');
+  if (a === 'pair' && sel.type === 'star') { const c = companions(sel.i)[0]; if (c) { const m = slerp(starV(sel.i), starV(c[0]), 0.5); flyTo(m, clamp(c[1] / 3600 * 26, 0.1, 30)); } }
 });
 
 // ---------------------------------------------------------------- input: mouse, touch, keyboard
 const ptrs = new Map();
-function stopTour() { if (tour) { tour = null; syncTourUI(); hideCaption(); } }
+function stopTour() { if (tour) { tour = null; syncTourUI(); hideCaption(); } if (ride) stopRide(); }
 ov.addEventListener('pointerdown', e => {
   ov.focus({ preventScroll: true }); ov.setPointerCapture(e.pointerId);
   const r = ov.getBoundingClientRect(); const x = e.clientX - r.left, y = e.clientY - r.top;
@@ -292,7 +342,7 @@ function endPtr(e) {
   if (pinch) { if (ptrs.size < 2) { pinch = null; scheduleHist(); } drag = null; return; }
   if (drag && drag.id === e.pointerId) {
     ov.classList.remove('dragging');
-    if (!drag.moved) { if (!photo.on) { const p = pick(drag.x0, drag.y0); if (p && p.type === 'con' && p.ci === selCon) select(null); else select(p); } }
+    if (!drag.moved) { if (!photo.on && !meridianPickAt(drag.x0, drag.y0)) { const p = pick(drag.x0, drag.y0); if (p && p.type === 'con' && p.ci === selCon) select(null); else select(p); } }
     else {
       const s = drag.samples, a = s[0], b = s[s.length - 1], dt = (b.t - a.t) / 1000;
       if (dt > 0.008 && performance.now() - b.t < 60 && settings.inertia > 0.02 && !settings.reduce) inertia = { vl: angDiff(b.lon, a.lon) / dt, vb: (b.lat - a.lat) / dt };
@@ -323,6 +373,7 @@ window.addEventListener('keydown', e => {
   if (k === 'r' || k === 'R') { randomTarget(); e.preventDefault(); return; }
   if (k === 't' || k === 'T') { startTour(); e.preventDefault(); return; }
   if (k === 'i' || k === 'I') { toggleArt(); e.preventDefault(); return; }
+  if (k === 'l' || k === 'L') { if (ride) stopRide(); else startRide(); e.preventDefault(); return; }
   if (k === 'ArrowLeft') panKey(-1, 0); else if (k === 'ArrowRight') panKey(1, 0); else if (k === 'ArrowUp') panKey(0, -1); else if (k === 'ArrowDown') panKey(0, 1);
   else if (k === '+' || k === '=') zoomBy(1 / 1.6); else if (k === '-' || k === '_') zoomBy(1.6);
   else if (k === 'q' || k === 'Q') rollBy(-15); else if (k === 'e' || k === 'E') rollBy(15);
@@ -347,7 +398,7 @@ function setMode(m, instant) {
     if (st.proj === 2 && st.fov > 180) st.fov = 170;
   }
   bodies = calcBodies(); bodiesT = st.time;
-  syncNavUI(); invalidate(); if (sel || selCon >= 0) updateCard(false);
+  syncNavUI(); invalidate(); if (sel || selCon >= 0) updateCard(false); if (meridian.on) syncMerUI();
   toast(m === 'hor' ? `Niebo nad: ${st.loc.n} · ${fmtLocDate(st.time)} ${fmtLocTime(st.time)}` : 'Mapa nieba · współrzędne równikowe');
 }
 let toastT = 0; function toast(t) { const el = $('#toast'); el.textContent = t; el.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => el.classList.remove('show'), 2400); }
@@ -374,7 +425,7 @@ function stepFocus(dt) {
 let capT = 0;
 function showCaption(T, i, dwell) {
   const el = $('#caption'); clearTimeout(capT);
-  $('#cap-k').textContent = tour ? `Wycieczka · ${i + 1} / ${TOUR.length}` : 'Cel';
+  $('#cap-k').textContent = T.k || (tour ? `Wycieczka · ${i + 1} / ${TOUR.length}` : 'Cel');
   $('#cap-t').textContent = T.n; $('#cap-s').textContent = T.s;
   $('#cap-c').innerHTML = (T.con || []).map(id => { const C = CONS.find(c => c.id === id); return C ? `<span>${iconHTML(C.i, 18)}${esc(settings.latin ? C.la : C.pl)}</span>` : esc(id); }).join('<i>·</i>');
   el.hidden = false; void el.offsetWidth; el.classList.add('show');
